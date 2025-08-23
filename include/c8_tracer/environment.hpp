@@ -4,35 +4,57 @@
 
 namespace c8_tracer
 {
-    class environment_base
+    class EnvironmentBase
     {
     public:
-        environment_base() = default;
-        virtual ~environment_base() = default;
+        EnvironmentBase() = default;
+        virtual ~EnvironmentBase() = default;
 
         // Returns a scalar field value at a given position
         virtual float get_n(const Vec3 &position) const = 0;
 
         // Returns the gradient of the scalar field at a given position
-        virtual Vec3 get_n_grad(const Vec3 &position) const = 0;
+        virtual Vec3 get_grad_n(const Vec3 &position) const = 0;
     };
 
-    class isotropic_environment : public environment_base
+    class IsotropicEnvironment : public EnvironmentBase
     {
     private:
         float n_refrac_;
 
     public:
-        isotropic_environment(float n_refrac) : n_refrac_(n_refrac) {}
+        IsotropicEnvironment(float n_refrac) : n_refrac_(n_refrac) {}
 
         float get_n(const Vec3 &position) const override
         {
             return n_refrac_;
         }
 
-        Vec3 get_n_grad(const Vec3 &position) const override
+        Vec3 get_grad_n(const Vec3 &position) const override
         {
             return Vec3(0.0f, 0.0f, 0.0f);
+        }
+    };
+
+    class LinearRadialEnvironment : public EnvironmentBase
+    {
+    private:
+        Vec3 center_;
+        float nCenter_;
+        float dNdR_;
+
+    public:
+        LinearRadialEnvironment(Vec3 const &center, float nCenter, float dNdR)
+            : center_(center), nCenter_(nCenter) {}
+
+        float get_n(const Vec3 &position) const override
+        {
+            return (position - center_).norm() * dNdR_ + nCenter_;
+        }
+
+        Vec3 get_grad_n(const Vec3 &position) const override
+        {
+            return (position - center_).normalized() * dNdR_;
         }
     };
 

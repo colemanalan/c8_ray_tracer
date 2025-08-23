@@ -7,27 +7,27 @@ namespace py = pybind11;
 using namespace c8_tracer;
 
 // Trampoline class to allow Python subclasses of environment_base
-class PyEnvironmentBase : public environment_base
+class PyEnvironmentBase : public EnvironmentBase
 {
 public:
-    using c8_tracer::environment_base::environment_base;
+    using c8_tracer::EnvironmentBase::EnvironmentBase;
 
     float get_n(const Vec3 &position) const override
     {
         PYBIND11_OVERRIDE_PURE(
-            float,                       // Return type
-            c8_tracer::environment_base, // Parent class
-            get_n,                       // Name of function
-            position                     // Argument
+            float,                      // Return type
+            c8_tracer::EnvironmentBase, // Parent class
+            get_n,                      // Name of function
+            position                    // Argument
         );
     }
 
-    Vec3 get_n_grad(const Vec3 &position) const override
+    Vec3 get_grad_n(const Vec3 &position) const override
     {
         PYBIND11_OVERRIDE_PURE(
             Vec3,
-            c8_tracer::environment_base,
-            get_n_grad,
+            c8_tracer::EnvironmentBase,
+            get_grad_n,
             position);
     }
 };
@@ -37,13 +37,18 @@ void bind_environment(py::module_ &m)
     py::module_ environment = m.def_submodule("environment", "Environmental descriptions");
 
     // add underscore to class name to avoid exposing the base
-    py::class_<c8_tracer::environment_base, PyEnvironmentBase>(environment, "_EnvironmentBase")
+    py::class_<c8_tracer::EnvironmentBase, PyEnvironmentBase>(environment, "_EnvironmentBase")
         .def(py::init<>())
-        .def("get_n", &c8_tracer::environment_base::get_n)
-        .def("get_n_grad", &c8_tracer::environment_base::get_n_grad);
+        .def("get_n", &c8_tracer::EnvironmentBase::get_n)
+        .def("get_grad_n", &c8_tracer::EnvironmentBase::get_grad_n);
 
-    py::class_<c8_tracer::isotropic_environment, c8_tracer::environment_base>(environment, "IsotropicEnvironment")
+    py::class_<c8_tracer::IsotropicEnvironment, c8_tracer::EnvironmentBase>(environment, "IsotropicEnvironment")
         .def(py::init<float>())
-        .def("get_n", &c8_tracer::isotropic_environment::get_n)
-        .def("get_n_grad", &c8_tracer::isotropic_environment::get_n_grad);
+        .def("get_n", &c8_tracer::IsotropicEnvironment::get_n)
+        .def("get_grad_n", &c8_tracer::IsotropicEnvironment::get_grad_n);
+
+    py::class_<c8_tracer::LinearRadialEnvironment, c8_tracer::EnvironmentBase>(environment, "LinearRadialEnvironment")
+        .def(py::init<Vec3, float, float>())
+        .def("get_n", &c8_tracer::LinearRadialEnvironment::get_n)
+        .def("get_grad_n", &c8_tracer::LinearRadialEnvironment::get_grad_n);
 }
