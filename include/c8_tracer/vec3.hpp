@@ -30,6 +30,7 @@ namespace c8_tracer
 
         // Magnitude
         float length() const { return std::sqrt(x * x + y * y + z * z); }
+        float norm() const { return length(); }
 
         // Normalization
         Vec3 normalized() const
