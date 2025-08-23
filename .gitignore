@@ -1,6 +1,7 @@
 build/
 c8_tracer.egg-info/
 old_stuff/
+.vscode/
 
 # Prerequisites
 *.d

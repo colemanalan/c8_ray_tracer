@@ -17,7 +17,7 @@ void bind_logger(py::module_ &m)
         .value("WARNING", c8_tracer::LogLevel::WARNING)
         .value("ERROR", c8_tracer::LogLevel::ERROR);
 
-    // Bind only the global logger instance
+    // Add underscore to class name to avoid exposing the class, only the singleton
     py::class_<c8_tracer::Logger>(logging, "_Logger")
         .def("set_level", &c8_tracer::Logger::set_level)
         .def("log", &c8_tracer::Logger::log)
