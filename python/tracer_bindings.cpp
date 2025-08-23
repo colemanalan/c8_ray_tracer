@@ -6,5 +6,5 @@ using namespace c8_tracer;
 
 void bind_tracer(py::module_ &m)
 {
-    m.def("add", &c8_tracer::add, "Add a value");
+  m.def("add", &c8_tracer::add, "Add a value");
 }
