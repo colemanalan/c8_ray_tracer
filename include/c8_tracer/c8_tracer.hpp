@@ -1,6 +1,7 @@
 #pragma once
 
 #include "c8_tracer/logger.hpp"
+#include "c8_tracer/signal_path.hpp"
 
 namespace c8_tracer
 {

@@ -11,7 +11,7 @@ namespace c8_tracer
     virtual ~EnvironmentBase() = default;
 
     // Returns a scalar field value at a given position
-    virtual float get_n(const Vec3 &position) const = 0;
+    virtual double get_n(const Vec3 &position) const = 0;
 
     // Returns the gradient of the scalar field at a given position
     virtual Vec3 get_grad_n(const Vec3 &position) const = 0;
@@ -20,19 +20,19 @@ namespace c8_tracer
   class IsotropicEnvironment : public EnvironmentBase
   {
   private:
-    float n_refrac_;
+    double n_refrac_;
 
   public:
-    IsotropicEnvironment(float n_refrac) : n_refrac_(n_refrac) {}
+    IsotropicEnvironment(double n_refrac) : n_refrac_(n_refrac) {}
 
-    float get_n(const Vec3 &position) const override
+    double get_n(const Vec3 &position) const override
     {
       return n_refrac_;
     }
 
     Vec3 get_grad_n(const Vec3 &position) const override
     {
-      return Vec3(0.0f, 0.0f, 0.0f);
+      return Vec3(0.0, 0.0, 0.0);
     }
   };
 
@@ -40,14 +40,14 @@ namespace c8_tracer
   {
   private:
     Vec3 center_;
-    float nCenter_;
-    float dNdR_;
+    double nCenter_;
+    double dNdR_;
 
   public:
-    LinearRadialEnvironment(Vec3 const &center, float nCenter, float dNdR)
+    LinearRadialEnvironment(Vec3 const &center, double nCenter, double dNdR)
         : center_(center), nCenter_(nCenter) {}
 
-    float get_n(const Vec3 &position) const override
+    double get_n(const Vec3 &position) const override
     {
       return (position - center_).norm() * dNdR_ + nCenter_;
     }
@@ -63,13 +63,13 @@ namespace c8_tracer
   private:
     Vec3 gradVec_;  // gradient of n
     Vec3 refPoint_; // defines where `nRef_` is known
-    float nRef_;    // index of refraction at `refPoint`
+    double nRef_;   // index of refraction at `refPoint`
 
   public:
-    CartesianLinearEnvironment(Vec3 const &gradVec, Vec3 const &refPoint, float nRef)
+    CartesianLinearEnvironment(Vec3 const &gradVec, Vec3 const &refPoint, double nRef)
         : gradVec_(gradVec), refPoint_(refPoint), nRef_(nRef) {}
 
-    float get_n(const Vec3 &position) const override
+    double get_n(const Vec3 &position) const override
     {
       return gradVec_.dot(position - refPoint_) + nRef_;
     }

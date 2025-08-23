@@ -5,10 +5,13 @@ def get_sources():
     source_dir = os.path.dirname(__file__)
 
     sources = [
-        "pywrapper.cpp",
         "cash_karp_bindings.cpp",
         "environment_bindings.cpp",
         "logger_bindings.cpp",
+        "path_bindings.cpp",
+        "plane_bindings.cpp",
+        "pywrapper.cpp",
+        "raytracer_bindings.cpp",
         "tracer_bindings.cpp",
         "vec_bindings.cpp",
     ]

@@ -11,9 +11,9 @@ namespace c8_tracer
   class CashKarpIntegrator
   {
   private:
-    float minStep_;
-    float maxStep_;
-    float inverseTol_;
+    double minStep_;
+    double maxStep_;
+    double inverseTol_;
 
     std::array<Vec3, 6> posPerStep_;
     std::array<Vec3, 6> dirPerStep_;
@@ -34,18 +34,18 @@ namespace c8_tracer
                              277. / 14336., 1. / 4.};
 
   public:
-    CashKarpIntegrator(float minStep, float maxStep, float tolerance)
+    CashKarpIntegrator(double minStep, double maxStep, double tolerance)
         : minStep_(minStep), maxStep_(maxStep), inverseTol_(1.0 / tolerance)
     {
     }
 
     void AdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
-                      Vec3 &endDir, float &h0, EnvironmentBase const &env,
+                      Vec3 &endDir, double &h0, EnvironmentBase const &env,
                       bool updateStep = true)
     {
 
-      float h = std::max(minStep_, std::min(h0, maxStep_));
-      float hNew = h;
+      double h = std::max(minStep_, std::min(h0, maxStep_));
+      double hNew = h;
       double ratio = 1;
 
       auto x0(startPos);
@@ -87,14 +87,14 @@ namespace c8_tracer
     }
 
     void Step(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
-              Vec3 &endDir, Vec3 &dirError, float const h,
+              Vec3 &endDir, Vec3 &dirError, double const h,
               EnvironmentBase const &env)
     {
 
       // Copy the location
       endPos = Vec3(startPos);
       endDir = Vec3(startDir);
-      dirError = Vec3(0.0f, 0.0f, 0.0f);
+      dirError = Vec3(0.0, 0.0, 0.0);
 
       for (size_t i = 0; i < 6; i++)
       {

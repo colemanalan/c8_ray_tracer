@@ -9,28 +9,28 @@ namespace c8_tracer
 
   struct Vec2
   {
-    float x, y;
+    double x, y;
 
-    constexpr Vec2(float x = 0.0f, float y = 0.0f) : x(x), y(y) {}
+    constexpr Vec2(double x = 0.0, double y = 0.0) : x(x), y(y) {}
 
     // Arithmetic
     constexpr Vec2 operator+(const Vec2 &rhs) const { return {x + rhs.x, y + rhs.y}; }
     constexpr Vec2 operator-(const Vec2 &rhs) const { return {x - rhs.x, y - rhs.y}; }
-    constexpr Vec2 operator*(float scalar) const { return {x * scalar, y * scalar}; }
-    constexpr Vec2 operator/(float scalar) const { return {x / scalar, y / scalar}; }
+    constexpr Vec2 operator*(double scalar) const { return {x * scalar, y * scalar}; }
+    constexpr Vec2 operator/(double scalar) const { return {x / scalar, y / scalar}; }
 
     // Dot product
-    constexpr float dot(const Vec2 &rhs) const { return x * rhs.x + y * rhs.y; }
+    constexpr double dot(const Vec2 &rhs) const { return x * rhs.x + y * rhs.y; }
 
     // Magnitude
-    float length() const { return std::sqrt(x * x + y * y); }
-    float norm() const { return length(); }
+    double length() const { return std::sqrt(x * x + y * y); }
+    double norm() const { return length(); }
 
     // Normalization
     Vec2 normalized() const
     {
-      float len = length();
-      return len > 0.0f ? (*this) / len : Vec2(0.0f, 0.0f);
+      double len = length();
+      return len > 0.0 ? (*this) / len : Vec2(0.0, 0.0);
     }
 
     // Convert to string

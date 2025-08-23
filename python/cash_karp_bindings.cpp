@@ -10,7 +10,7 @@ void bind_cash_karp(py::module_ &m)
   py::module_ integrators = m.def_submodule("integrators", "Numerical integators");
 
   py::class_<c8_tracer::CashKarpIntegrator>(integrators, "CashKarpIntegrator")
-      .def(py::init<float, float, float>())
+      .def(py::init<double, double, double>())
       .def("AdaptiveStep", &c8_tracer::CashKarpIntegrator::AdaptiveStep)
       .def("Step", &c8_tracer::CashKarpIntegrator::Step);
 }
