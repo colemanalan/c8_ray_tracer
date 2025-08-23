@@ -1,8 +1,13 @@
 #include <pybind11/pybind11.h>
-#include "c8_tracer/c8_tracer.hpp"
 
 namespace py = pybind11;
 
+// Forward declarations
+void bind_vec(py::module_&);
+void bind_tracer(py::module_&);
+
 PYBIND11_MODULE(c8_tracer_py, m) {
-    m.def("add", &c8_tracer::add, "Add a value");
+    m.doc() = "Python bindings for c8_tracer";
+    bind_vec(m);
+    bind_tracer(m);
 }
