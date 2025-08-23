@@ -1,5 +1,8 @@
 #pragma once
 #include <cmath>
+#include <iostream>
+#include <string>
+#include <sstream>
 
 namespace c8_tracer
 {
@@ -37,6 +40,14 @@ namespace c8_tracer
         {
             float len = length();
             return len > 0.0f ? (*this) / len : Vec3(0.0f, 0.0f, 0.0f);
+        }
+
+        // Convert to string
+        std::string to_string() const
+        {
+            std::ostringstream oss;
+            oss << "Vec3(" << x << ", " << y << ", " << z << ")";
+            return oss.str();
         }
     };
 }

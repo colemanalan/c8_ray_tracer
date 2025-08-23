@@ -6,6 +6,7 @@ def get_sources():
 
     sources = [
         "pywrapper.cpp",
+        "cash_karp_bindings.cpp",
         "environment_bindings.cpp",
         "logger_bindings.cpp",
         "tracer_bindings.cpp",

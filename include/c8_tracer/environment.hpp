@@ -58,4 +58,26 @@ namespace c8_tracer
         }
     };
 
+    class CartesianLinearEnvironment : public EnvironmentBase
+    {
+    private:
+        Vec3 gradVec_;  // gradient of n
+        Vec3 refPoint_; // defines where `nRef_` is known
+        float nRef_;    // index of refraction at `refPoint`
+
+    public:
+        CartesianLinearEnvironment(Vec3 const &gradVec, Vec3 const &refPoint, float nRef)
+            : gradVec_(gradVec), refPoint_(refPoint), nRef_(nRef) {}
+
+        float get_n(const Vec3 &position) const override
+        {
+            return gradVec_.dot(position - refPoint_) + nRef_;
+        }
+
+        Vec3 get_grad_n(const Vec3 &position) const override
+        {
+            return gradVec_;
+        }
+    };
+
 }

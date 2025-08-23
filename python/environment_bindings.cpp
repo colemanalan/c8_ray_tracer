@@ -51,4 +51,9 @@ void bind_environment(py::module_ &m)
         .def(py::init<Vec3, float, float>())
         .def("get_n", &c8_tracer::LinearRadialEnvironment::get_n)
         .def("get_grad_n", &c8_tracer::LinearRadialEnvironment::get_grad_n);
+
+    py::class_<c8_tracer::CartesianLinearEnvironment, c8_tracer::EnvironmentBase>(environment, "CartesianLinearEnvironment")
+        .def(py::init<Vec3, float, float>())
+        .def("get_n", &c8_tracer::CartesianLinearEnvironment::get_n)
+        .def("get_grad_n", &c8_tracer::CartesianLinearEnvironment::get_grad_n);
 }
