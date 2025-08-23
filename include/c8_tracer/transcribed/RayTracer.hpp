@@ -1,0 +1,258 @@
+#pragma once
+
+#include "c8_tracer/transcribed/c8_typedefs.hpp"
+#include "c8_tracer/plane.hpp"
+#include "c8_tracer/environment.hpp"
+#include "c8_tracer/signal_path.hpp"
+#include "c8_tracer/transcribed/CashKarpIntegrator.hpp"
+
+namespace c8_tracer
+{
+
+  class RayTracer2D
+  {
+  public:
+    /*
+    Solves the ray solutions between sets of points in space.
+    This is implemented to solve problems where the gradient of the index of refraction
+    only changes along one dimension.
+
+    Arguments:
+      axis:
+        axis along which the gradent changes
+      minStep:
+        minimum step size that can be take by the propagator
+      maxStep:
+        maximum step size that can be take by the propagator
+      tolerance:
+        relative uncertainty on the numerical integration for each step. The step size
+    will be adjusted to keep it within this tolerance
+
+    */
+    RayTracer2D(DirectionVector const axis, LengthType const minStep,
+                LengthType const maxStep, double const tolerance);
+    ~RayTracer2D() {}
+
+    /*
+    Adds a reflection layer for the propagation. Rays only reflect such that they
+    stay on the side of the plane where the normal vector is pointing
+    */
+    void AddReflectionLayer(Plane const layer);
+
+    /*
+    This is the main function which finds the solutions from `start` to `end`
+
+    Arguments:
+      start:
+        starting location of the launch point
+      end:
+        the target location for the propagation
+      env:
+        description of the refractive index and gradient
+    */
+    std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
+                                             EnvironmentBase const &env);
+
+    /*
+    Finds the initial propagation direction such that a ray propagates from `start` to
+    `end`. This does a simple numerical gradient descent starting from `seed` until
+    convergence is found. If a solution is not found after several steps, this will return
+    0
+
+    Arguments:
+      start:
+        starting location of the launch point
+      end:
+        the target location for the propagation
+      env:
+        description of the refractive index and gradient
+      seed:
+        initial guess of the launch vector
+      emit:
+        this will be updated with the found emit vector
+      receive:
+        this will be updated with the found receive vector
+
+    Returns:
+      if a valid solution was found
+    */
+    template <typename TEnvironment>
+    bool FindEmitAndReceive(Point const &start, Point const &end, TEnvironment const &env,
+                            DirectionVector const &seed, DirectionVector &emit,
+                            DirectionVector &receive);
+
+    /*
+    Propagates a ray from `start` until the lateral distance (see `Get2DProjection`)
+    exceeds a specified value. This function handles the reflections off the known planes.
+
+    Arguments:
+      start:
+        starting location of the launch point
+      startDir:
+        initial direction of propagation at `start`
+      end:
+        this value will be updated with the final location
+      endDir:
+        this value will be update with direction at `end`
+      rMaxSq:
+        maximum lateral distance^2 that the ray will be tracked
+      env:
+        description of the refractive index and gradient
+
+    Returns:
+      the number of steps in the propagation from `start` to `end`
+    */
+    template <typename TEnvironment>
+    uint ShootOneRayToMaximumR(Point const &start, DirectionVector const &startDir,
+                               Point &end, DirectionVector &endDir,
+                               LengthTypeSq const rMaxSq, TEnvironment const &env);
+
+    /*
+    Propagates a ray from `start` until reaching a minimum z value
+    This function handles the reflections off the known planes.
+
+    Arguments:
+      start:
+        starting location of the launch point
+      startDir:
+        initial direction of propagation at `start`
+      end:
+        this value will be updated with the final location
+      endDir:
+        this value will be update with direction at `end`
+      minZ:
+        point at which the minimum z value will be considered
+      env:
+        description of the refractive index and gradient
+
+    Returns:
+      the number of steps in the propagation from `start` to `end`
+    */
+    template <typename TEnvironment>
+    uint ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
+                               Point &end, DirectionVector &endDir, Point const &minZ,
+                               TEnvironment const &env);
+
+    /*
+    This does a binary search to find the point on the plane and that the ray
+    intersects. This function expects to only need to perform a single step
+    and optimizes the step size such that the ray arrives at the plane
+
+    Arguments:
+      x0:
+        starting location of the launch point (should be only 1 step away from the
+        boundary)
+      startDir:
+        initial direction of propagation at `x0`
+      end:
+        this value will be updated with the final location (will be on the reflection
+        plane)
+      endDir:
+        this value will be update with direction at `end` after reflecting it
+      plane:
+        plane that is doing the reflecting
+      step:
+        maximum step size in the binary search
+      env:
+        description of the refractive index and gradient
+    */
+    template <typename TEnvironment>
+    void FindIntersectionWithPlane(Point const &x0, DirectionVector const &v0, Point &end,
+                                   DirectionVector &endDir, Plane const &plane,
+                                   LengthType const step, TEnvironment const &env);
+
+    /*
+    Finds the intersection with the plane using `FindIntersectionWithPlane` and gives
+    the final direction after reflection
+
+    Arguments:
+      x0:
+        starting location of the launch point (should be only 1 step away from the
+        boundary)
+      startDir:
+        initial direction of propagation at `x0`
+      end:
+        this value will be updated with the final location (will be on the reflection
+        plane)
+      endDir:
+        this value will be update with direction at `end` after reflecting it
+      plane:
+        plane that is doing the reflecting
+      step:
+        maximum step size in the binary search
+      env:
+        description of the refractive index and gradient
+
+    Returns:
+      tuple of (Fresnel-S, Fresnel-P)
+    */
+    template <typename TEnvironment>
+    std::tuple<double, double> ReflectOffPlane(Point const &x0, DirectionVector const &v0,
+                                               Point &end, DirectionVector &endDir,
+                                               Plane const &plane, LengthType const step,
+                                               TEnvironment const &env);
+
+    /*
+    This helps find the point that is exactly a specified lateral distance (see
+    `Get2DProjection`) away from `x0`. The function performs a binary search to find
+    the step size required such that the propagation is at the correct distance. This
+    function expects to only need to perform a single step and optimizes the step size
+    such that the ray arrives at the boundary
+
+    Arguments:
+      x0:
+        starting location of the launch point (should be only 1 step away from the
+        boundary)
+      v0:
+        initial direction of propagation at `x0`
+      end:
+        this value will be updated with the final location (will be sqrt(`rMaxSq`) from
+      endDir:
+        this value will be update with direction at `end` point
+      rMaxSq:
+        plane that is doing the reflecting step: maximum step size in the binary
+        search
+
+      env: description of the refractive index and gradient
+    */
+    template <typename TEnvironment>
+    void FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
+                    DirectionVector &endDir, LengthTypeSq const rMaxSq,
+                    LengthType const step, TEnvironment const &env);
+
+    /*
+    Gets the projection in the x-y plane of the vector from `x0` to `x1`
+    The x-y plane is defined in the coordinate system of `x0`
+    */
+    auto Get2DProjection(Point const &x0, Point const &xf);
+
+    /*
+    Gets the distance in the x-y plane along the line connecting x0 and xf
+    The radial distance from xf and xtest is returned
+    */
+    LengthType Get2DRadialDistance(Point const &x0, Point const &xf, Point const &xtest);
+
+    template <typename TEnvironment>
+    SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
+                             Point const &target, TEnvironment const &env);
+
+    DirectionVector const &GetAxis() const { return axis_; }
+
+    void PrintProfiling();
+    void ResetProfiling();
+
+  private:
+    CashKarpIntegrator tracer_;
+    std::vector<Plane> reflectionLayers_;
+    DirectionVector axis_;
+
+    // profiling parameters
+    unsigned long int raysPropagated_ = 0;
+    unsigned long int stepsTaken_ = 0;
+    unsigned long int binarySearchReflection_ = 0;
+    unsigned long int binarySearchBoundary_ = 0;
+    unsigned long int numericalDerivativeSteps_ = 0;
+  };
+}
+
+#include "c8_tracer/transcribed/RayTracer.inl"
