@@ -51,3 +51,12 @@ namespace c8_tracer
         }
     };
 }
+
+// Enable std::to_string(Vec3)
+namespace std
+{
+    inline std::string to_string(const c8_tracer::Vec3 &v)
+    {
+        return v.to_string();
+    }
+}
