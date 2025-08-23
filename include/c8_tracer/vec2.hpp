@@ -7,38 +7,38 @@
 namespace c8_tracer
 {
 
-    struct Vec2
+  struct Vec2
+  {
+    float x, y;
+
+    constexpr Vec2(float x = 0.0f, float y = 0.0f) : x(x), y(y) {}
+
+    // Arithmetic
+    constexpr Vec2 operator+(const Vec2 &rhs) const { return {x + rhs.x, y + rhs.y}; }
+    constexpr Vec2 operator-(const Vec2 &rhs) const { return {x - rhs.x, y - rhs.y}; }
+    constexpr Vec2 operator*(float scalar) const { return {x * scalar, y * scalar}; }
+    constexpr Vec2 operator/(float scalar) const { return {x / scalar, y / scalar}; }
+
+    // Dot product
+    constexpr float dot(const Vec2 &rhs) const { return x * rhs.x + y * rhs.y; }
+
+    // Magnitude
+    float length() const { return std::sqrt(x * x + y * y); }
+    float norm() const { return length(); }
+
+    // Normalization
+    Vec2 normalized() const
     {
-        float x, y;
+      float len = length();
+      return len > 0.0f ? (*this) / len : Vec2(0.0f, 0.0f);
+    }
 
-        constexpr Vec2(float x = 0.0f, float y = 0.0f) : x(x), y(y) {}
-
-        // Arithmetic
-        constexpr Vec2 operator+(const Vec2 &rhs) const { return {x + rhs.x, y + rhs.y}; }
-        constexpr Vec2 operator-(const Vec2 &rhs) const { return {x - rhs.x, y - rhs.y}; }
-        constexpr Vec2 operator*(float scalar) const { return {x * scalar, y * scalar}; }
-        constexpr Vec2 operator/(float scalar) const { return {x / scalar, y / scalar}; }
-
-        // Dot product
-        constexpr float dot(const Vec2 &rhs) const { return x * rhs.x + y * rhs.y; }
-
-        // Magnitude
-        float length() const { return std::sqrt(x * x + y * y); }
-        float norm() const { return length(); }
-
-        // Normalization
-        Vec2 normalized() const
-        {
-            float len = length();
-            return len > 0.0f ? (*this) / len : Vec2(0.0f, 0.0f);
-        }
-
-        // Convert to string
-        std::string to_string() const
-        {
-            std::ostringstream oss;
-            oss << "Vec3(" << x << ", " << y << ")";
-            return oss.str();
-        }
-    };
+    // Convert to string
+    std::string to_string() const
+    {
+      std::ostringstream oss;
+      oss << "Vec3(" << x << ", " << y << ")";
+      return oss.str();
+    }
+  };
 }

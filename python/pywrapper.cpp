@@ -11,10 +11,10 @@ void bind_vec(py::module_ &);
 
 PYBIND11_MODULE(c8_tracer_py, m)
 {
-    m.doc() = "Python bindings for c8_tracer";
-    bind_cash_karp(m);
-    bind_environment(m);
-    bind_logger(m);
-    bind_tracer(m);
-    bind_vec(m);
+  m.doc() = "Python bindings for c8_tracer";
+  bind_cash_karp(m);
+  bind_environment(m);
+  bind_logger(m);
+  bind_tracer(m);
+  bind_vec(m);
 }
