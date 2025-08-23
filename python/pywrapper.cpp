@@ -3,11 +3,14 @@
 namespace py = pybind11;
 
 // Forward declarations
-void bind_vec(py::module_&);
-void bind_tracer(py::module_&);
+void bind_vec(py::module_ &);
+void bind_tracer(py::module_ &);
+void bind_logger(py::module_ &);
 
-PYBIND11_MODULE(c8_tracer_py, m) {
+PYBIND11_MODULE(c8_tracer_py, m)
+{
     m.doc() = "Python bindings for c8_tracer";
     bind_vec(m);
     bind_tracer(m);
+    bind_logger(m);
 }

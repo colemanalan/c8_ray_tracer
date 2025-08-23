@@ -1,13 +1,45 @@
-# only needed for building by hand
+cmake_minimum_required(VERSION 3.15)
+project(c8_tracer_py LANGUAGES CXX)
 
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(c8_tracer_py
-    pywrapper.cpp
-    vec_bindings.cpp
-    tracer_bindings.cpp
+execute_process(
+    COMMAND python3 python/bindings_sources.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE SOURCE_LIST_RAW
+    OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-target_include_directories(c8_tracer_py PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(c8_tracer_py PRIVATE Python3::Python)
+if(NOT SOURCE_LIST_RAW STREQUAL "")
+    string(REPLACE " " ";" SOURCE_LIST ${SOURCE_LIST_RAW})
+    message(STATUS "Source files: ${SOURCE_LIST}")
+else()
+    message(FATAL_ERROR "bindings_sources.py returned an empty source list.")
+endif()
+
+pybind11_add_module(c8_tracer_py ${SOURCE_LIST})
+
+
+# Include project headers
+target_include_directories(c8_tracer_py
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/../include # Adjust path if needed
+)
+
+# Link against Python and other dependencies
+target_link_libraries(c8_tracer_py
+    PRIVATE
+    Python3::Python
+)
+
+# Optional: Set C++ standard
+set_target_properties(c8_tracer_py PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+)
+
+# Optional: Output to a specific directory
+set_target_properties(c8_tracer_py PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../build/python
+)
