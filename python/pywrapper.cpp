@@ -9,6 +9,7 @@ void bind_logger(py::module_ &);
 void bind_path(py::module_ &);
 void bind_plane(py::module_ &);
 void bind_raytracer(py::module_ &);
+void bind_ray_tracing_table(py::module_ &);
 void bind_tracer(py::module_ &);
 void bind_vec(py::module_ &);
 
@@ -22,6 +23,7 @@ PYBIND11_MODULE(c8_tracer_py, m)
   bind_path(m);
   bind_plane(m);
   bind_raytracer(m);
+  bind_ray_tracing_table(m);
   bind_tracer(m);
   bind_vec(m);
 }

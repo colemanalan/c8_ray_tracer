@@ -8,7 +8,9 @@ namespace c8_tracer
   typedef Vec3 DirectionVector;
 
   typedef double LengthType;
+  typedef double InverseLengthType;
   typedef double LengthTypeSq;
+  typedef double TimeType;
 
 } // namespace c8_tracer
 

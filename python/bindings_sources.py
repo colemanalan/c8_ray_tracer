@@ -12,6 +12,7 @@ def get_sources():
         "plane_bindings.cpp",
         "pywrapper.cpp",
         "raytracer_bindings.cpp",
+        "ray_tracing_table_bindings.cpp",
         "tracer_bindings.cpp",
         "vec_bindings.cpp",
     ]
