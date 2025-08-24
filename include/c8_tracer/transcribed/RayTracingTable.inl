@@ -336,6 +336,18 @@ namespace c8_tracer
     return Interpolate_(duration_, r, z);
   }
 
+  inline double RayTracingTable::GetFresnelS(LengthType const &r,
+                                             LengthType const &z) const
+  {
+    return Interpolate_(fresnelS_, r, z);
+  }
+
+  inline double RayTracingTable::GetFresnelP(LengthType const &r,
+                                             LengthType const &z) const
+  {
+    return Interpolate_(fresnelP_, r, z);
+  }
+
   inline uint RayTracingTable::SigFigs_(double val, uint decimalPoints = 3) const
   {
     if (val == 0)
