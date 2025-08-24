@@ -14,27 +14,11 @@ namespace c8_tracer
 
 #define str std::to_string
 
-  SignalPath FlipSignalPath(SignalPath const &inPath)
-  {
-    Path flippedPath(inPath.getEnd());
-
-    for (int ibin = inPath.getNSegments() - 2; ibin >= 0; ibin--)
-    {
-      flippedPath.addToEnd(inPath.getPoint(ibin));
-    }
-
-    return SignalPath(inPath.propagation_time_, inPath.average_refractive_index_,
-                      inPath.refractive_index_destination_,
-                      inPath.refractive_index_source_, inPath.receive_ * -1,
-                      inPath.emit_ * -1, inPath.R_distance_, flippedPath,
-                      inPath.fresnelS_, inPath.fresnelP_);
-  }
-
   inline RayTracer2D::RayTracer2D(DirectionVector const axis,
                                   LengthType const minStep = 0.0001,
                                   LengthType const maxStep = 10.0,
                                   double const tolerance = 1e-8)
-      : tracer_(minStep, maxStep, tolerance), axis_(axis.normalized()) {}
+      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance) {}
 
   inline void RayTracer2D::AddReflectionLayer(Plane const layer)
   {

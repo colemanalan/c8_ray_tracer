@@ -8,11 +8,15 @@ namespace c8_tracer
 {
   class RayTracerBase
   {
-  private:
-    /* data */
+  protected:
+    DirectionVector axis_;
+
   public:
-    RayTracerBase() = default;
+    explicit RayTracerBase(const DirectionVector &axis)
+        : axis_(axis) {}
     ~RayTracerBase() = default;
+
+    DirectionVector const &GetAxis() const { return axis_; }
 
     /*
     This is the main function which finds the solutions from `start` to `end`

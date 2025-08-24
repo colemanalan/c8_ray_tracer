@@ -229,8 +229,6 @@ namespace c8_tracer
     SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
                              Point const &target, EnvironmentBase const &env) override;
 
-    DirectionVector const &GetAxis() const { return axis_; }
-
     void PrintProfiling();
     void ResetProfiling();
 
@@ -239,7 +237,6 @@ namespace c8_tracer
   private:
     CashKarpIntegrator tracer_;
     std::vector<Plane> reflectionLayers_;
-    DirectionVector axis_;
 
     // profiling parameters
     unsigned long int raysPropagated_ = 0;

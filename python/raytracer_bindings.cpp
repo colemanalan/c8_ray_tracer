@@ -62,10 +62,11 @@ void bind_raytracer(py::module_ &m)
   py::module_ tracer = m.def_submodule("tracer", "Ray tracers and related materials");
 
   py::class_<RayTracerBase, PyRayTracerBase>(tracer, "RayTracerBase")
-      .def(py::init<>())
+      .def(py::init<DirectionVector>())
       .def("PropagateToPoint", &c8_tracer::RayTracerBase::PropagateToPoint)
       .def("FindEmitAndReceive", &c8_tracer::RayTracerBase::FindEmitAndReceive)
-      .def("GetSignalPath", &c8_tracer::RayTracerBase::GetSignalPath);
+      .def("GetSignalPath", &c8_tracer::RayTracerBase::GetSignalPath)
+      .def("GetAxis", &RayTracer2D::GetAxis);
 
   // RayTracer2D
   py::class_<RayTracer2D, RayTracerBase>(tracer, "RayTracer2D")
@@ -82,7 +83,6 @@ void bind_raytracer(py::module_ &m)
       .def("FindRadius", &RayTracer2D::FindRadius)
       .def("Get2DProjection", &RayTracer2D::Get2DProjection)
       .def("Get2DRadialDistance", &RayTracer2D::Get2DRadialDistance)
-      .def("GetAxis", &RayTracer2D::GetAxis)
       .def("PrintProfiling", &RayTracer2D::PrintProfiling)
       .def("ResetProfiling", &RayTracer2D::ResetProfiling);
   ;

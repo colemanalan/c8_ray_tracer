@@ -40,6 +40,22 @@ namespace c8_tracer
     const_iterator end() const { return Path::end(); }
   };
 
+  inline SignalPath FlipSignalPath(SignalPath const &inPath)
+  {
+    Path flippedPath(inPath.getEnd());
+
+    for (int ibin = inPath.getNSegments() - 2; ibin >= 0; ibin--)
+    {
+      flippedPath.addToEnd(inPath.getPoint(ibin));
+    }
+
+    return SignalPath(inPath.propagation_time_, inPath.average_refractive_index_,
+                      inPath.refractive_index_destination_,
+                      inPath.refractive_index_source_, inPath.receive_ * -1,
+                      inPath.emit_ * -1, inPath.R_distance_, flippedPath,
+                      inPath.fresnelS_, inPath.fresnelP_);
+  }
+
   inline std::ostream &operator<<(std::ostream &os, const SignalPath &sig_path)
   {
     os << sig_path.to_string();
