@@ -11,6 +11,16 @@ void bind_cash_karp(py::module_ &m)
 
   py::class_<c8_tracer::CashKarpIntegrator>(integrators, "CashKarpIntegrator")
       .def(py::init<double, double, double>())
-      .def("AdaptiveStep", &c8_tracer::CashKarpIntegrator::AdaptiveStep)
-      .def("Step", &c8_tracer::CashKarpIntegrator::Step);
+      .def("AdaptiveStep", [](CashKarpIntegrator &self, const Vec3 &startPos, const Vec3 &startDir, const EnvironmentBase &env, double h0, bool updateStep)
+           {
+        Vec3 endPos, endDir;
+        double h0_copy = h0;
+        self.AdaptiveStep(startPos, startDir, endPos, endDir, h0_copy, env, updateStep);
+        return py::make_tuple(endPos, endDir, h0_copy); }, py::arg("startPos"), py::arg("startDir"), py::arg("env"), py::arg("h0"), py::arg("updateStep") = true)
+
+      .def("Step", [](CashKarpIntegrator &self, const Vec3 &startPos, const Vec3 &startDir, double h0, const EnvironmentBase &env)
+           {
+        Vec3 endPos, endDir, dirError;
+        self.Step(startPos, startDir, endPos, endDir, dirError, h0, env);
+        return py::make_tuple(endPos, endDir, dirError); });
 }
