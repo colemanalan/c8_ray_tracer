@@ -40,7 +40,7 @@ void bind_vec(py::module_ &m)
          .def(py::self * double())
          .def(py::self / double())
          .def("__repr__", [](const Vec2 &v)
-              { return "<Vec2 x=" + std::to_string(v.x) + " y=" + std::to_string(v.y) + ">"; });
+              { return "Vec2(" + std::to_string(v.x) + ", " + std::to_string(v.y) + ")"; });
 
      // Vec3
      py::class_<Vec3>(m, "Vec3", "3D vector")
@@ -78,7 +78,7 @@ void bind_vec(py::module_ &m)
          .def(py::self * double())
          .def(py::self / double())
          .def("__repr__", [](const Vec3 &v)
-              { return "<Vec3 x=" + std::to_string(v.x) +
-                       " y=" + std::to_string(v.y) +
-                       " z=" + std::to_string(v.z) + ">"; });
+              { return "Vec3(" + std::to_string(v.x) +
+                       ", " + std::to_string(v.y) +
+                       ", " + std::to_string(v.z) + ")"; });
 }

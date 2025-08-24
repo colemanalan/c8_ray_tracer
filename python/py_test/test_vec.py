@@ -1,6 +1,5 @@
 import unittest
 from c8_tracer_py import Vec2, Vec3
-import math
 
 
 class TestVec2(unittest.TestCase):
