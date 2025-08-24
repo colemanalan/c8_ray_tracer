@@ -1,15 +1,15 @@
 #pragma once
 
-#include "c8_tracer/transcribed/c8_typedefs.hpp"
-#include "c8_tracer/plane.hpp"
 #include "c8_tracer/environment.hpp"
-#include "c8_tracer/signal_path.hpp"
+#include "c8_tracer/plane.hpp"
+#include "c8_tracer/ray_tracer_base.hpp"
 #include "c8_tracer/transcribed/CashKarpIntegrator.hpp"
+#include "c8_tracer/transcribed/c8_typedefs.hpp"
 
 namespace c8_tracer
 {
 
-  class RayTracer2D
+  class RayTracer2D : public RayTracerBase
   {
   public:
     /*
@@ -51,7 +51,7 @@ namespace c8_tracer
         description of the refractive index and gradient
     */
     std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
-                                             EnvironmentBase const &env);
+                                             EnvironmentBase const &env) override;
 
     /*
     Finds the initial propagation direction such that a ray propagates from `start` to
@@ -78,7 +78,7 @@ namespace c8_tracer
     */
     bool FindEmitAndReceive(Point const &start, Point const &end, EnvironmentBase const &env,
                             DirectionVector const &seed, DirectionVector &emit,
-                            DirectionVector &receive);
+                            DirectionVector &receive) override;
 
     /*
     Propagates a ray from `start` until the lateral distance (see `Get2DProjection`)
@@ -227,7 +227,7 @@ namespace c8_tracer
     LengthType Get2DRadialDistance(Point const &x0, Point const &xf, Point const &xtest);
 
     SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
-                             Point const &target, EnvironmentBase const &env);
+                             Point const &target, EnvironmentBase const &env) override;
 
     DirectionVector const &GetAxis() const { return axis_; }
 
