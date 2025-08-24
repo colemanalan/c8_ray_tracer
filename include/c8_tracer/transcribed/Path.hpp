@@ -16,7 +16,7 @@ namespace c8_tracer
 
   protected:
     std::deque<Point> points_; ///< The points that make up this path.
-    LengthType length_ = 0.0; ///< The length of the path.
+    LengthType length_ = 0.0;  ///< The length of the path.
 
     using iterator = std::deque<Point>::iterator;
     using const_iterator = std::deque<Point>::const_iterator;
@@ -89,8 +89,21 @@ namespace c8_tracer
      */
     inline int getNSegments() const;
 
+    inline std::string to_string() const
+    {
+      return "Path[" + std::to_string(getNSegments()) +
+             " steps, start: " + std::to_string(getStart()) +
+             ", end: " + std::to_string(getEnd()) + "]";
+    }
+
   }; // class Path
 
-} // namespace corsika
+  inline std::ostream &operator<<(std::ostream &os, const Path &path)
+  {
+    os << path.to_string();
+    return os;
+  }
+
+} // namespace c8_tracer
 
 #include "c8_tracer/transcribed/Path.inl"

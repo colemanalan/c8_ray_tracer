@@ -37,8 +37,14 @@ namespace c8_tracer
     std::string to_string() const
     {
       std::ostringstream oss;
-      oss << "Vec3(" << x << ", " << y << ")";
+      oss << "Vec2(" << x << ", " << y << ")";
       return oss.str();
     }
   };
+
+  inline std::ostream &operator<<(std::ostream &os, const Vec2 &vec)
+  {
+    os << vec.to_string();
+    return os;
+  }
 }

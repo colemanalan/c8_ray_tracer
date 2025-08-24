@@ -60,7 +60,7 @@ namespace c8_tracer
 
     if (end.z > start.z)
     {
-      logger.trace("Start " + str(start) + " is above end " + str(end) + ", flipping");
+      logger.debug("Start " + str(start) + " is above end " + str(end) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
@@ -77,15 +77,15 @@ namespace c8_tracer
     DirectionVector emit1 = seed1;    // initialize
     DirectionVector receive1 = seed1; // initialize
 
-    logger.trace("Finding first solution with seed " + str(seed1));
+    logger.info("Finding first solution with seed " + str(seed1));
     bool const solution1Found =
         FindEmitAndReceive(start, end, env, seed1, emit1, receive1);
-    logger.trace("Returned solution dir " + str(emit1));
+    logger.info("Returned solution dir " + str(emit1));
 
     // If this one failed, the next one is not worth calculating (shadow zone)
     if (!solution1Found)
     {
-      logger.trace("Direct solution finding failed, won't find second solution");
+      logger.warning("Direct solution finding failed, won't find second solution");
       return signalPaths;
     }
 
@@ -104,15 +104,15 @@ namespace c8_tracer
     DirectionVector emit2 = seed2;
     DirectionVector receive2 = seed2;
 
-    logger.trace("Finding second solution with seed " + str(seed2));
+    logger.info("Finding second solution with seed " + str(seed2));
     bool solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
-    logger.trace("Returned solution dir " + str(emit2));
+    logger.info("Returned solution dir " + str(emit2));
 
     // if similar, probably found the same solution again
     // do a scan to check for other solution
     if (abs(emit1.z - emit2.z) < 0.0001)
     {
-      logger.trace(
+      logger.warning(
           "Solution 2 is similar to solution 1, performing search for another minimum");
       int const nTest = 5;
       double const dcos = (1 - emit1.z) / (nTest + 1);
@@ -128,6 +128,7 @@ namespace c8_tracer
           break;
         }
       }
+      logger.info("After retry, found new solution dir " + str(emit2));
     }
 
     if (!solution2Found)
@@ -141,9 +142,8 @@ namespace c8_tracer
     return signalPaths;
   }
 
-  template <typename TEnvironment>
   inline bool RayTracer2D::FindEmitAndReceive(
-      Point const &sourceXX, Point const &targetXX, TEnvironment const &env,
+      Point const &sourceXX, Point const &targetXX, EnvironmentBase const &env,
       DirectionVector const &seed, DirectionVector &emit, DirectionVector &receive)
   {
 
@@ -368,10 +368,9 @@ namespace c8_tracer
     return false;
   }
 
-  template <typename TEnvironment>
   inline void RayTracer2D::FindIntersectionWithPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
-      Plane const &plane, LengthType const step, TEnvironment const &env)
+      Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
     constexpr auto closeThreshold = 0.000005; // defines when solution is found
@@ -512,10 +511,9 @@ namespace c8_tracer
     }
   }
 
-  template <typename TEnvironment>
   inline std::tuple<double, double> RayTracer2D::ReflectOffPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
-      Plane const &plane, LengthType const step, TEnvironment const &env)
+      Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
     // CORSIKA_LOG_TRACE("Performing reflection starting at {} {} ending at {} {}", x0, v0,
@@ -576,10 +574,9 @@ namespace c8_tracer
     return {reflectSComp, reflectPComp};
   }
 
-  template <typename TEnvironment>
   void RayTracer2D::FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
                                DirectionVector &endDir, LengthTypeSq const rMaxSq,
-                               LengthType const step, TEnvironment const &env)
+                               LengthType const step, EnvironmentBase const &env)
   {
     auto fracHigh = 2.0; // Extend a bit beyond for numerical precision safety
     auto fracMid = 1.0;
@@ -683,12 +680,11 @@ namespace c8_tracer
     } // End while loop
   }
 
-  template <typename TEnvironment>
   inline uint RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
                                                  Point const &minZ,
-                                                 TEnvironment const &env)
+                                                 EnvironmentBase const &env)
   {
 
     raysPropagated_++;
@@ -762,12 +758,11 @@ namespace c8_tracer
     return istep;
   }
 
-  template <typename TEnvironment>
   inline uint RayTracer2D::ShootOneRayToMaximumR(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
                                                  LengthTypeSq const rMaxSq,
-                                                 TEnvironment const &env)
+                                                 EnvironmentBase const &env)
   {
 
     raysPropagated_++;
@@ -834,14 +829,14 @@ namespace c8_tracer
     return istep;
   }
 
-  template <typename TEnvironment>
   inline SignalPath RayTracer2D::GetSignalPath(Point const &start,
                                                DirectionVector const &startDir,
                                                Point const &target,
-                                               TEnvironment const &env)
+                                               EnvironmentBase const &env)
   {
 
     Path path(start);
+    logger.info("Making signal path");
 
     auto const targetZ = target.z;
 
@@ -878,6 +873,8 @@ namespace c8_tracer
       weightedIndexOfRefraction += n * dist;
       propLength += dist;
     };
+
+    logger.debug("Going from " + str(end.z) + " to " + str(targetZ));
 
     while (end.z > targetZ && istep < maxSteps)
     {
@@ -925,16 +922,16 @@ namespace c8_tracer
                       propLength, path, fresnelS, fresnelP);
   }
 
-  inline auto RayTracer2D::Get2DProjection(Point const &x0, Point const &xf)
+  inline Vec3 RayTracer2D::Get2DProjection(Point const &x0, Point const &xf)
   {
-    auto const dr = xf - x0;
+    Vec3 const dr = xf - x0;
     return dr - axis_ * dr.dot(axis_);
   }
 
   inline LengthType RayTracer2D::Get2DRadialDistance(Point const &x0, Point const &xf,
                                                      Point const &xtest)
   {
-    auto const proj = Get2DProjection(x0, xf);
+    Vec3 const proj = Get2DProjection(x0, xf);
     return (xtest - xf).dot(proj / proj.getNorm());
   }
 

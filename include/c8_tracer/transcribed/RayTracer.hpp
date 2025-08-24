@@ -76,8 +76,7 @@ namespace c8_tracer
     Returns:
       if a valid solution was found
     */
-    template <typename TEnvironment>
-    bool FindEmitAndReceive(Point const &start, Point const &end, TEnvironment const &env,
+    bool FindEmitAndReceive(Point const &start, Point const &end, EnvironmentBase const &env,
                             DirectionVector const &seed, DirectionVector &emit,
                             DirectionVector &receive);
 
@@ -102,10 +101,9 @@ namespace c8_tracer
     Returns:
       the number of steps in the propagation from `start` to `end`
     */
-    template <typename TEnvironment>
     uint ShootOneRayToMaximumR(Point const &start, DirectionVector const &startDir,
                                Point &end, DirectionVector &endDir,
-                               LengthTypeSq const rMaxSq, TEnvironment const &env);
+                               LengthTypeSq const rMaxSq, EnvironmentBase const &env);
 
     /*
     Propagates a ray from `start` until reaching a minimum z value
@@ -128,10 +126,9 @@ namespace c8_tracer
     Returns:
       the number of steps in the propagation from `start` to `end`
     */
-    template <typename TEnvironment>
     uint ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
                                Point &end, DirectionVector &endDir, Point const &minZ,
-                               TEnvironment const &env);
+                               EnvironmentBase const &env);
 
     /*
     This does a binary search to find the point on the plane and that the ray
@@ -156,10 +153,9 @@ namespace c8_tracer
       env:
         description of the refractive index and gradient
     */
-    template <typename TEnvironment>
     void FindIntersectionWithPlane(Point const &x0, DirectionVector const &v0, Point &end,
                                    DirectionVector &endDir, Plane const &plane,
-                                   LengthType const step, TEnvironment const &env);
+                                   LengthType const step, EnvironmentBase const &env);
 
     /*
     Finds the intersection with the plane using `FindIntersectionWithPlane` and gives
@@ -186,11 +182,10 @@ namespace c8_tracer
     Returns:
       tuple of (Fresnel-S, Fresnel-P)
     */
-    template <typename TEnvironment>
     std::tuple<double, double> ReflectOffPlane(Point const &x0, DirectionVector const &v0,
                                                Point &end, DirectionVector &endDir,
                                                Plane const &plane, LengthType const step,
-                                               TEnvironment const &env);
+                                               EnvironmentBase const &env);
 
     /*
     This helps find the point that is exactly a specified lateral distance (see
@@ -215,16 +210,15 @@ namespace c8_tracer
 
       env: description of the refractive index and gradient
     */
-    template <typename TEnvironment>
     void FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
                     DirectionVector &endDir, LengthTypeSq const rMaxSq,
-                    LengthType const step, TEnvironment const &env);
+                    LengthType const step, EnvironmentBase const &env);
 
     /*
     Gets the projection in the x-y plane of the vector from `x0` to `x1`
     The x-y plane is defined in the coordinate system of `x0`
     */
-    auto Get2DProjection(Point const &x0, Point const &xf);
+    Vec3 Get2DProjection(Point const &x0, Point const &xf);
 
     /*
     Gets the distance in the x-y plane along the line connecting x0 and xf
@@ -232,9 +226,8 @@ namespace c8_tracer
     */
     LengthType Get2DRadialDistance(Point const &x0, Point const &xf, Point const &xtest);
 
-    template <typename TEnvironment>
     SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
-                             Point const &target, TEnvironment const &env);
+                             Point const &target, EnvironmentBase const &env);
 
     DirectionVector const &GetAxis() const { return axis_; }
 

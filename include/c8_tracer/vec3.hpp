@@ -36,7 +36,8 @@ namespace c8_tracer
     double norm() const { return length(); }
 
     // Functions to match C8 calls
-    double getNorm() const { return length(); } // to match C8
+    double getNorm() const { return length(); }                     // to match C8
+    double getSquaredNorm() const { return x * x + y * y + z * z; } // to match C8
 
     // Normalization
     Vec3 normalized() const
@@ -53,6 +54,12 @@ namespace c8_tracer
       return oss.str();
     }
   };
+
+  inline std::ostream &operator<<(std::ostream &os, const Vec3 &vec)
+  {
+    os << vec.to_string();
+    return os;
+  }
 }
 
 // Enable std::to_string(Vec3)

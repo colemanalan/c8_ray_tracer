@@ -43,7 +43,7 @@ void bind_vec(py::module_ &m)
               { return "<Vec2 x=" + std::to_string(v.x) + " y=" + std::to_string(v.y) + ">"; });
 
      // Vec3
-     py::class_<Vec3>(m, "Vec3")
+     py::class_<Vec3>(m, "Vec3", "3D vector")
          .def(py::init<double, double, double>())
          .def_readwrite("x", &Vec3::x)
          .def_readwrite("y", &Vec3::y)

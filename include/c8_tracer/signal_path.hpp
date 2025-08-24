@@ -29,6 +29,21 @@ namespace c8_tracer
           R_distance_(distance), receive_(receive),
           fresnelS_(fresnelS), fresnelP_(fresnelP) {}
     ~SignalPath() = default;
+
+    inline std::string to_string() const
+    {
+      return "SignalPath[emit: " + std::to_string(emit_) +
+             " receive: " + std::to_string(receive_) +
+             " " + Path::to_string() + "]";
+    }
+    const_iterator begin() const { return Path::begin(); }
+    const_iterator end() const { return Path::end(); }
   };
+
+  inline std::ostream &operator<<(std::ostream &os, const SignalPath &sig_path)
+  {
+    os << sig_path.to_string();
+    return os;
+  }
 
 } // namespace c8_tracer
