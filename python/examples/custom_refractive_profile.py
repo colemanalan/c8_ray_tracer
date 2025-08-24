@@ -57,6 +57,13 @@ start = Vec3(0, 0, -50)
 end = Vec3(300, 0, -200.0)
 paths: list[SignalPath] = ray_tracer.PropagateToPoint(start, end, env)
 
+for path in paths:
+    dist = (path.getEnd() - end).norm()
+    logging.logger.info(f"Distance to target {dist}m")
+
+print()
+ray_tracer.PrintProfiling()
+
 # make a plot of the final path
 fig = plt.figure(1)
 ax = fig.add_subplot(1, 2, 1)
