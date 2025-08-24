@@ -20,6 +20,10 @@ endif()
 
 pybind11_add_module(c8_tracer_py ${SOURCE_LIST})
 
+# Enable compiler warnings
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(c8_tracer_py PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 
 # Include project headers
 target_include_directories(c8_tracer_py

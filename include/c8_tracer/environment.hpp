@@ -1,5 +1,6 @@
 #pragma once
 
+#include "c8_tracer/logger.hpp"
 #include "c8_tracer/vec3.hpp"
 
 namespace c8_tracer
@@ -33,12 +34,12 @@ namespace c8_tracer
   public:
     IsotropicEnvironment(double nRefrac) : nRefrac_(nRefrac) {}
 
-    double get_n(const Vec3 &position) const override
+    double get_n(const Vec3 &) const override
     {
       return nRefrac_;
     }
 
-    Vec3 get_grad_n(const Vec3 &position) const override
+    Vec3 get_grad_n(const Vec3 &) const override
     {
       return Vec3(0.0, 0.0, 0.0);
     }
@@ -63,7 +64,7 @@ namespace c8_tracer
 
   public:
     LinearRadialEnvironment(Vec3 const &center, double nCenter, double dNdR)
-        : center_(center), nCenter_(nCenter) {}
+        : center_(center), nCenter_(nCenter), dNdR_(dNdR) {}
 
     double get_n(const Vec3 &position) const override
     {
@@ -102,7 +103,7 @@ namespace c8_tracer
       return gradVec_.dot(position - refPoint_) + nRef_;
     }
 
-    Vec3 get_grad_n(const Vec3 &position) const override
+    Vec3 get_grad_n(const Vec3 &) const override
     {
       return gradVec_;
     }

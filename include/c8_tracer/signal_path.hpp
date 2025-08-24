@@ -26,7 +26,7 @@ namespace c8_tracer
         : Path(points), propagation_time_(dt), average_refractive_index_(avg_n),
           refractive_index_source_(n_source),
           refractive_index_destination_(n_dest), emit_(emit),
-          R_distance_(distance), receive_(receive),
+          receive_(receive), R_distance_(distance),
           fresnelS_(fresnelS), fresnelP_(fresnelP) {}
     ~SignalPath() = default;
 
