@@ -234,6 +234,8 @@ namespace c8_tracer
     void PrintProfiling();
     void ResetProfiling();
 
+    LengthType _GetZ(Point const &p) const { return p.dot(axis_); }
+
   private:
     CashKarpIntegrator tracer_;
     std::vector<Plane> reflectionLayers_;

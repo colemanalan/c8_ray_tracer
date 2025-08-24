@@ -63,7 +63,7 @@ namespace c8_tracer
     Point start = sourceXX;
     Point end = targetXX;
 
-    if (end.z > start.z)
+    if (_GetZ(end) > _GetZ(start))
     {
       logger.debug("(PropagateToPoint) Start " + str(start) + " is above end " + str(end) + ", flipping");
       std::swap(start, end);
@@ -74,7 +74,7 @@ namespace c8_tracer
     DirectionVector seed1 = (end - start).normalized();
     // don't want to start directly horizontal (will not propagate)
     // bump the direction slightly upward
-    if (abs(seed1.z) < 0.001)
+    if (abs(_GetZ(seed1)) < 0.001)
     {
       seed1 = (seed1 + DirectionVector({0, 0, 0.01})).normalized();
     }
@@ -102,7 +102,7 @@ namespace c8_tracer
         atan2(static_cast<double>(seed1.y), static_cast<double>(seed1.x));
 
     // in most cases, the other solution is close to the negative launch vector
-    double cosine = (abs(emit1.z) + 0.99) * 0.25;
+    double cosine = (abs(_GetZ(emit1)) + 0.99) * 0.25;
     auto sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
     auto seed2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
 
@@ -115,12 +115,12 @@ namespace c8_tracer
 
     // if similar, probably found the same solution again
     // do a scan to check for other solution
-    if (abs(emit1.z - emit2.z) < 0.0001)
+    if (abs(_GetZ(emit1) - _GetZ(emit2)) < 0.0001)
     {
       logger.warning(
           "(PropagateToPoint) Solution 2 is similar to solution 1, performing search for another minimum");
       int const nTest = 5;
-      double const dcos = (1 - emit1.z) / (nTest + 1);
+      double const dcos = (1 - _GetZ(emit1)) / (nTest + 1);
       for (int itest = 1; itest <= nTest; itest++)
       {
         cosine += dcos;
@@ -128,7 +128,7 @@ namespace c8_tracer
         seed2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
         solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
 
-        if (abs(emit1.z - emit2.z) > 0.0001)
+        if (abs(_GetZ(emit1) - _GetZ(emit2)) > 0.0001)
         {
           break;
         }
@@ -165,7 +165,7 @@ namespace c8_tracer
     Point end = targetXX;
     bool flippedStartEnd = false;
 
-    if (end.z > start.z)
+    if (_GetZ(end) > _GetZ(start))
     {
       logger.trace("(PropagateToPoint) Flipping start/end positions. original start " +
                    str(sourceXX) + ", original end " + str(targetXX));
@@ -181,7 +181,7 @@ namespace c8_tracer
     auto const phi =
         std::atan2(v1.y, v1.x);
 
-    if (seed.z < -0.99)
+    if (_GetZ(seed) < -0.99)
     {
       logger.trace("(PropagateToPoint) Direction close to vertical, setting dcos to " + str(dcos * 0.01));
       dcos *= 0.01;
@@ -201,16 +201,16 @@ namespace c8_tracer
     // logger.trace("D1 --> start {}, end {}, testPos {}", start, end, testPos);
 
     // set launch vector #2 as a slight perturbation to calculate derivatie
-    auto cosine = v1.z + dcos;
+    auto cosine = _GetZ(v1) + dcos;
     if (cosine < -1)
     {
       dcos *= -1;
-      cosine = v1.z + dcos;
+      cosine = _GetZ(v1) + dcos;
     }
     else if (cosine > 1)
     {
       dcos *= -1;
-      cosine = v1.z + dcos;
+      cosine = _GetZ(v1) + dcos;
     }
 
     auto sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
@@ -302,14 +302,14 @@ namespace c8_tracer
       if (0.0 > dr1 && (dr1 > closeNegErr || 0.0 == closeNegErr))
       {
         closeNegErr = dr1;
-        closeNegCos = v1.z;
+        closeNegCos = _GetZ(v1);
         logger.trace("(PropagateToPoint) Step " + str(istep) +
                      " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
       }
       else if (0.0 < dr1 && (dr1 < closePosErr || 0.0 == closePosErr))
       {
         closePosErr = dr1;
-        closePosCos = v1.z;
+        closePosCos = _GetZ(v1);
         logger.trace("(PropagateToPoint) Step " + str(istep) + " --> Updating pos binary limit " +
                      str(closeNegCos) + " " + str(closePosErr));
       }
@@ -321,7 +321,7 @@ namespace c8_tracer
       // If spanning the solution, linear interp using current solutions
       if (dr1 * dr2 < 0.0 * 0.0)
       {
-        cosine = (dr1 * v2.z - dr2 * v1.z) / (dr1 - dr2);
+        cosine = (dr1 * _GetZ(v2) - dr2 * _GetZ(v1)) / (dr1 - dr2);
         derivative *= 0.0; // don't update on next step
         dcos *= 0.1;
       }
@@ -334,7 +334,7 @@ namespace c8_tracer
         dcos *= 0.5;
         logger.trace(
             "(PropagateToPoint) Step " + str(istep) + " --> Taking binary step current cos: " +
-            str(v1.z) + " next cos: " + str(cosine));
+            str(_GetZ(v1)) + " next cos: " + str(cosine));
       }
       else
       {
@@ -855,7 +855,7 @@ namespace c8_tracer
     Path path(start);
     logger.debug("(GetSignalPath) Making signal path using emit: " + str(startDir) + " from " + str(start) + " to " + str(target));
 
-    auto const targetZ = target.z;
+    auto const targetZ = _GetZ(target);
 
     // set up some variables
     auto x0 = start;
@@ -865,7 +865,7 @@ namespace c8_tracer
     auto const normStartDir = startDir.normalized();
     DirectionVector endDir = normStartDir;
 
-    if (start.z < targetZ)
+    if (_GetZ(start) < targetZ)
     {
       logger.warning("(GetSignalPath) Asking to propagate with an initial position below the target");
     }
@@ -892,10 +892,9 @@ namespace c8_tracer
       propLength += dist;
     };
 
-    logger.debug("(GetSignalPath) Going from " + str(end.z) + " to " + str(targetZ));
+    logger.debug("(GetSignalPath) Going from " + str(_GetZ(end)) + " to " + str(targetZ));
 
-
-    while (end.z > targetZ && istep < maxSteps)
+    while (_GetZ(end) > targetZ && istep < maxSteps)
     {
       if (istep > 0)
       {
