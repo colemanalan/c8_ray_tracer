@@ -65,7 +65,7 @@ namespace c8_tracer
 
     if (end.z > start.z)
     {
-      logger.debug("Start " + str(start) + " is above end " + str(end) + ", flipping");
+      logger.debug("(PropagateToPoint) Start " + str(start) + " is above end " + str(end) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
@@ -82,15 +82,15 @@ namespace c8_tracer
     DirectionVector emit1 = seed1;    // initialize
     DirectionVector receive1 = seed1; // initialize
 
-    logger.info("Finding first solution with seed " + str(seed1));
+    logger.info("(PropagateToPoint) Finding first solution with seed " + str(seed1));
     bool const solution1Found =
         FindEmitAndReceive(start, end, env, seed1, emit1, receive1);
-    logger.info("Returned solution dir " + str(emit1));
+    logger.info("(PropagateToPoint) Returned solution dir " + str(emit1));
 
     // If this one failed, the next one is not worth calculating (shadow zone)
     if (!solution1Found)
     {
-      logger.warning("Direct solution finding failed, won't find second solution");
+      logger.warning("(PropagateToPoint) Direct solution finding failed, won't find second solution");
       return signalPaths;
     }
 
@@ -109,16 +109,16 @@ namespace c8_tracer
     DirectionVector emit2 = seed2;
     DirectionVector receive2 = seed2;
 
-    logger.info("Finding second solution with seed " + str(seed2));
+    logger.info("(PropagateToPoint) Finding second solution with seed " + str(seed2));
     bool solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
-    logger.info("Returned solution dir " + str(emit2));
+    logger.info("(PropagateToPoint) Returned solution dir " + str(emit2));
 
     // if similar, probably found the same solution again
     // do a scan to check for other solution
     if (abs(emit1.z - emit2.z) < 0.0001)
     {
       logger.warning(
-          "Solution 2 is similar to solution 1, performing search for another minimum");
+          "(PropagateToPoint) Solution 2 is similar to solution 1, performing search for another minimum");
       int const nTest = 5;
       double const dcos = (1 - emit1.z) / (nTest + 1);
       for (int itest = 1; itest <= nTest; itest++)
@@ -133,7 +133,7 @@ namespace c8_tracer
           break;
         }
       }
-      logger.info("After retry, found new solution dir " + str(emit2));
+      logger.info("(PropagateToPoint) After retry, found new solution dir " + str(emit2));
     }
 
     if (!solution2Found)
@@ -167,12 +167,14 @@ namespace c8_tracer
 
     if (end.z > start.z)
     {
-      logger.trace("Flipping start/end positions. original start " + str(sourceXX) + ", original end " + str(targetXX));
+      logger.trace("(PropagateToPoint) Flipping start/end positions. original start " +
+                   str(sourceXX) + ", original end " + str(targetXX));
       std::swap(start, end);
       flippedStartEnd = true;
 
       ShootOneRayToMinimumZ(start, v1, testPos, testDir, end, env);
-      logger.trace("Flipping start/end positions. original " + str(testDir.normalized()) + ", flipped " + str(testDir.normalized() * -1));
+      logger.trace("(PropagateToPoint) Flipping start/end positions. original " + str(testDir.normalized()) +
+                   ", flipped " + str(testDir.normalized() * -1));
       v1 = v2 = testDir.normalized() * -1;
     }
 
@@ -181,7 +183,7 @@ namespace c8_tracer
 
     if (seed.z < -0.99)
     {
-      logger.trace("Direction close to vertical, setting dcos to " + str(dcos * 0.01));
+      logger.trace("(PropagateToPoint) Direction close to vertical, setting dcos to " + str(dcos * 0.01));
       dcos *= 0.01;
     }
 
@@ -236,14 +238,14 @@ namespace c8_tracer
       // no point in going forward anymore
       if (abs(dcos) < DCOS_TOL)
       {
-        logger.trace("Numerical precision limit hit, dcos: " + str(dcos));
+        logger.trace("(PropagateToPoint) Numerical precision limit hit, dcos: " + str(dcos));
         emit = flippedStartEnd ? testDir * -1 : v1;
         receive = flippedStartEnd ? v1 * -1 : testDir;
         emit = emit.normalized();
         receive = receive.normalized();
         numericalDerivativeSteps_ += istep;
 
-        logger.debug("FOUND SOLUTION based on dcos machine tolerance:  v0 " + str(emit) +
+        logger.debug("(PropagateToPoint) FOUND SOLUTION based on dcos machine tolerance:  v0 " + str(emit) +
                      ", pos " + str(testPos) + ", abs 3D dist " +
                      str((testPos - end).getNorm()));
         return true;
@@ -255,12 +257,12 @@ namespace c8_tracer
       // keep bounded for large derivatives
       if (cosine + cosineStep > 1)
       {
-        logger.trace("Step would be above 1, setting cosine to: " + str(0.5 * (1 + cosine)));
+        logger.trace("(PropagateToPoint) Step would be above 1, setting cosine to: " + str(0.5 * (1 + cosine)));
         cosine = std::min(0.5 * (1 + cosine), 1.0);
       }
       else if (cosine + cosineStep < -1)
       {
-        logger.trace("Step would be below 1, setting cosine to: " + str(0.5 * (-1.0 + cosine)));
+        logger.trace("(PropagateToPoint) Step would be below 1, setting cosine to: " + str(0.5 * (-1.0 + cosine)));
         cosine = std::max(-1.0, 0.5 * (-1.0 + cosine));
       }
       else
@@ -282,7 +284,7 @@ namespace c8_tracer
         emit = emit.normalized();
         receive = receive.normalized();
 
-        logger.debug("FOUND SOLUTION within tol, v0 " + str(emit) +
+        logger.debug("(PropagateToPoint) FOUND SOLUTION within tol, v0 " + str(emit) +
                      ", pos " + str(testPos) + ", abs 3D dist " +
                      str((testPos - end).getNorm()));
         numericalDerivativeSteps_ += istep;
@@ -301,16 +303,19 @@ namespace c8_tracer
       {
         closeNegErr = dr1;
         closeNegCos = v1.z;
-        logger.trace("Step " + str(istep) + " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
+        logger.trace("(PropagateToPoint) Step " + str(istep) +
+                     " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
       }
       else if (0.0 < dr1 && (dr1 < closePosErr || 0.0 == closePosErr))
       {
         closePosErr = dr1;
         closePosCos = v1.z;
-        logger.trace("Step " + str(istep) + " --> Updating pos binary limit " + str(closeNegCos) + " " + str(closePosErr));
+        logger.trace("(PropagateToPoint) Step " + str(istep) + " --> Updating pos binary limit " +
+                     str(closeNegCos) + " " + str(closePosErr));
       }
 
-      logger.trace("Step " + str(istep) + " --> Binary search values closeNegCos: " + str(closeNegCos) + " closeNegErr: " + str(closeNegErr) +
+      logger.trace("(PropagateToPoint) Step " + str(istep) + " --> Binary search values closeNegCos: " +
+                   str(closeNegCos) + " closeNegErr: " + str(closeNegErr) +
                    " closePosCos: " + str(closePosCos) + "  closePosErr: " + str(closePosErr));
 
       // If spanning the solution, linear interp using current solutions
@@ -328,7 +333,7 @@ namespace c8_tracer
         derivative *= 0.0;
         dcos *= 0.5;
         logger.trace(
-            "Step " + str(istep) + " --> Taking binary step current cos: " +
+            "(PropagateToPoint) Step " + str(istep) + " --> Taking binary step current cos: " +
             str(v1.z) + " next cos: " + str(cosine));
       }
       else
@@ -336,7 +341,7 @@ namespace c8_tracer
 
         if (dr1 == dr2)
         {
-          logger.trace("Found the same points, derivative inf, returning seed value");
+          logger.trace("(PropagateToPoint) Found the same points, derivative inf, returning seed value");
           v1 = seed;
           break;
         }
@@ -345,22 +350,23 @@ namespace c8_tracer
         derivative = dcos / (dr1 - dr2);
         cosine = clampCosine(cosine - dcos);
 
-        logger.trace("Step " + str(istep) + " --> phi " + str(phi) + ", cosine " + str(cosine) +
-                     ", new-cosine " + str(cosine + dcos) + ", derivative " + str(derivative));
+        logger.trace("(PropagateToPoint) Step " + str(istep) + " --> phi " + str(phi) + ", cosine " +
+                     str(cosine) + ", new-cosine " + str(cosine + dcos) + ", derivative " + str(derivative));
       }
 
       // decrease the step size if the numerical derivative is no longer a small step
       if (abs(dr1) < abs(dr1 - dr2) * 100 && dcos > 1e-10)
       {
         dcos *= 0.05;
-        logger.trace("Close to the target dr1 " + str(abs(dr1)) + " diff " + str(abs(dr1 - dr2)) + " dcos " + str(dcos));
+        logger.trace("(PropagateToPoint) Close to the target dr1 " + str(abs(dr1)) + " diff " +
+                     str(abs(dr1 - dr2)) + " dcos " + str(dcos));
       }
 
-      logger.trace("Step " + str(istep) + " --> v1 " + str(v1) + ", v2 " + str(v2) +
+      logger.debug("(PropagateToPoint) Step " + str(istep) + " --> v1 " + str(v1) + ", v2 " + str(v2) +
                    ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
     }
 
-    logger.trace("Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
+    logger.trace("(PropagateToPoint) Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
                  ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
 
     numericalDerivativeSteps_ += nSteps;
@@ -369,7 +375,7 @@ namespace c8_tracer
     emit = emit.normalized();
     receive = receive.normalized();
 
-    logger.debug("No solution found, last check was v0 " + str(emit) +
+    logger.debug("(PropagateToPoint) No solution found, last check was v0 " + str(emit) +
                  ", pos " + str(testPos) + ", abs 3D dist " +
                  str((testPos - end).getNorm()));
 
@@ -525,11 +531,11 @@ namespace c8_tracer
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
-    // CORSIKA_LOG_TRACE("Performing reflection starting at {} {} ending at {} {}", x0, v0,
-    //                   end, endDir);
+    logger.trace("(ReflectOffPlane) Performing reflection starting at x0: " + str(x0) + " v0: " +
+                 str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
     FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
 
-    // CORSIKA_LOG_TRACE("Intersecting plane at {} dir {}", end, endDir);
+    logger.trace("(ReflectOffPlane) Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
     auto const n1 = env.get_n(x0);
 
@@ -579,7 +585,7 @@ namespace c8_tracer
       end = end - endDir.normalized() * distanceFromPlane * 1.001 / endDir.normalized().dot(plane.getNormal());
     }
 
-    // CORSIKA_LOG_TRACE("New direction: {}, new position: {}", endDir, end);
+    logger.trace("(ReflectOffPlane) New direction xf " + str(end) + " vf: " + str(endDir));
     return {reflectSComp, reflectPComp};
   }
 
@@ -730,7 +736,7 @@ namespace c8_tracer
           stepSize = prevStep;
 
           logger.trace("(ShootOneRayToMinimumZ) Entered reflection loop between " +
-                        str(x0) + " and " + str(end) + ", step size " + str(stepSize));
+                       str(x0) + " and " + str(end) + ", step size " + str(stepSize));
           if ((x0 - plane.getCenter()).dot(plane.getNormal()) < 0.0)
           {
             logger.error("(ShootOneRayToMinimumZ) First point should not be on this side of plane " +
@@ -758,6 +764,8 @@ namespace c8_tracer
     // Find the crossing point
     if (maxSteps > istep)
     {
+      logger.trace("(ShootOneRayToMinimumZ) point found below the plane x0: " + str(x0) +
+                   ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
       FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
     }
     // RAY_TRACER_PRINT("Corrected, xf {}, vf {}, dist {}", end, endDir,
@@ -852,6 +860,7 @@ namespace c8_tracer
     // set up some variables
     auto x0 = start;
     auto end = start;
+    auto v0 = startDir;
 
     auto const normStartDir = startDir.normalized();
     DirectionVector endDir = normStartDir;
@@ -885,6 +894,7 @@ namespace c8_tracer
 
     logger.debug("(GetSignalPath) Going from " + str(end.z) + " to " + str(targetZ));
 
+
     while (end.z > targetZ && istep < maxSteps)
     {
       if (istep > 0)
@@ -894,7 +904,7 @@ namespace c8_tracer
       }
 
       x0 = end;
-      auto const v0 = endDir;
+      v0 = endDir;
 
       tracer_.AdaptiveStep(x0, v0, end, endDir, stepSize, env);
       ++istep;
@@ -911,11 +921,12 @@ namespace c8_tracer
       }
     }
 
+    logger.debug("(GetSignalPath) Finding final intersection with plane using x0:" + str(x0) + ", v0: " + str(v0));
     // Final intersection if not capped
     if (istep < maxSteps)
     {
       auto const minimumPlane = Plane(target, DirectionVector({0, 0, 1}));
-      FindIntersectionWithPlane(x0, endDir, end, endDir, minimumPlane, stepSize, env);
+      FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
     }
 
     path.addToEnd(end);
