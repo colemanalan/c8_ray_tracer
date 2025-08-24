@@ -37,7 +37,7 @@ void bind_environment(py::module_ &m)
   py::module_ environment = m.def_submodule("environment", "Environmental descriptions");
 
   // add underscore to class name to avoid exposing the base
-  py::class_<c8_tracer::EnvironmentBase, PyEnvironmentBase>(environment, "_EnvironmentBase")
+  py::class_<c8_tracer::EnvironmentBase, PyEnvironmentBase>(environment, "EnvironmentBase")
       .def(py::init<>())
       .def("get_n", &c8_tracer::EnvironmentBase::get_n)
       .def("get_grad_n", &c8_tracer::EnvironmentBase::get_grad_n);
