@@ -15,7 +15,7 @@ public:
   double get_n(const Vec3 &position) const override
   {
     PYBIND11_OVERRIDE_PURE(
-        double,                      // Return type
+        double,                     // Return type
         c8_tracer::EnvironmentBase, // Parent class
         get_n,                      // Name of function
         position                    // Argument
@@ -43,17 +43,14 @@ void bind_environment(py::module_ &m)
       .def("get_grad_n", &c8_tracer::EnvironmentBase::get_grad_n);
 
   py::class_<c8_tracer::IsotropicEnvironment, c8_tracer::EnvironmentBase>(environment, "IsotropicEnvironment")
-      .def(py::init<double>())
-      .def("get_n", &c8_tracer::IsotropicEnvironment::get_n)
-      .def("get_grad_n", &c8_tracer::IsotropicEnvironment::get_grad_n);
+      .def(py::init<double>());
 
   py::class_<c8_tracer::LinearRadialEnvironment, c8_tracer::EnvironmentBase>(environment, "LinearRadialEnvironment")
-      .def(py::init<Vec3, double, double>())
-      .def("get_n", &c8_tracer::LinearRadialEnvironment::get_n)
-      .def("get_grad_n", &c8_tracer::LinearRadialEnvironment::get_grad_n);
+      .def(py::init<Vec3, double, double>());
 
   py::class_<c8_tracer::CartesianLinearEnvironment, c8_tracer::EnvironmentBase>(environment, "CartesianLinearEnvironment")
-      .def(py::init<Vec3, Vec3, double>())
-      .def("get_n", &c8_tracer::CartesianLinearEnvironment::get_n)
-      .def("get_grad_n", &c8_tracer::CartesianLinearEnvironment::get_grad_n);
+      .def(py::init<Vec3, Vec3, double>());
+
+  py::class_<c8_tracer::CartesianSingleExponentialEnvironment, c8_tracer::EnvironmentBase>(environment, "CartesianSingleExponentialEnvironment")
+      .def(py::init<double, double, double, Vec3, Vec3>());
 }
