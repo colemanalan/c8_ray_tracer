@@ -10,6 +10,7 @@ namespace c8_tracer
 
   enum class LogLevel
   {
+    ALL,
     TRACE,
     DEBUG,
     INFO,
@@ -37,6 +38,7 @@ namespace c8_tracer
                 << message << std::endl;
     }
 
+    void all(const std::string &msg) { log(LogLevel::ALL, msg); }
     void trace(const std::string &msg) { log(LogLevel::TRACE, msg); }
     void debug(const std::string &msg) { log(LogLevel::DEBUG, msg); }
     void info(const std::string &msg) { log(LogLevel::INFO, msg); }
@@ -59,6 +61,8 @@ namespace c8_tracer
     {
       switch (level)
       {
+      case LogLevel::ALL:
+        return "ALL";
       case LogLevel::TRACE:
         return "TRACE";
       case LogLevel::DEBUG:

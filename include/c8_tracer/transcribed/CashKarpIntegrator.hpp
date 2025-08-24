@@ -66,13 +66,13 @@ namespace c8_tracer
         hNew = std::max(0.1f * h, std::min(hNew, 5 * h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
 
-        logger.trace("Test step: pos " + xf.to_string() + " dir " + vf.to_string() +
-                     " err " + std::to_string(error.norm()) + " err-ratio " + std::to_string(ratio) +
-                     " h " + std::to_string(h) + " hNew " + std::to_string(hNew));
+        logger.all("Test step: pos " + xf.to_string() + " dir " + vf.to_string() +
+                   " err " + std::to_string(error.norm()) + " err-ratio " + std::to_string(ratio) +
+                   " h " + std::to_string(h) + " hNew " + std::to_string(hNew));
 
         if (hNew == minStep_)
         {
-          logger.trace("Hist min step size " + std::to_string(minStep_));
+          logger.all("Hist min step size " + std::to_string(minStep_));
           break; // performed step already at the minimum
         }
       } while (ratio > 1);
