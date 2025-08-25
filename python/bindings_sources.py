@@ -11,9 +11,8 @@ def get_sources():
         "path_bindings.cpp",
         "plane_bindings.cpp",
         "pywrapper.cpp",
-        "raytracer_bindings.cpp",
         "ray_tracing_table_bindings.cpp",
-        "tracer_bindings.cpp",
+        "raytracer_bindings.cpp",
         "vec_bindings.cpp",
     ]
 
