@@ -1,6 +1,6 @@
 import unittest
-from c8_tracer_py import Vec3
-from c8_tracer_py.path import Path, SignalPath
+from c8_tracer import Vec3
+from c8_tracer.path import Path, SignalPath
 
 
 class TestPath(unittest.TestCase):

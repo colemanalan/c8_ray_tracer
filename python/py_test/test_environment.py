@@ -1,7 +1,7 @@
 import unittest
 
-from c8_tracer_py import Vec3
-from c8_tracer_py import environment
+from c8_tracer import Vec3
+from c8_tracer import environment
 
 
 class TestEnvironment(unittest.TestCase):
