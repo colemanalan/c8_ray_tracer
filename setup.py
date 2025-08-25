@@ -5,7 +5,7 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "python"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "python", "bindings"))
 from bindings_sources import get_sources
 
 ext_modules = [

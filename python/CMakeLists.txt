@@ -5,7 +5,7 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
 
 execute_process(
-    COMMAND python3 python/bindings_sources.py
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bindings/bindings_sources.py
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE SOURCE_LIST_RAW
     OUTPUT_STRIP_TRAILING_WHITESPACE
