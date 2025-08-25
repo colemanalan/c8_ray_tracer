@@ -14,9 +14,6 @@ void bind_ray_tracing_table(py::module_ &);
 void bind_tracer(py::module_ &);
 void bind_vec(py::module_ &);
 
-// // Explicit instantiation of the template
-// template void bind_interpolation_table_generator_2d<RayTracer2D>(py::module_ &);
-
 PYBIND11_MODULE(c8_tracer_py, m)
 {
   m.doc() = "Python bindings for c8_tracer";
