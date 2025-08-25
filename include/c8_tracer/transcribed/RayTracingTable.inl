@@ -252,7 +252,7 @@ namespace c8_tracer
     PrintTable_(length_, 1.0);
     std::cout << "\n";
     std::cout << "Duration / ns\n";
-    PrintTable_(duration_, 1.0);
+    PrintTable_(duration_, 1e-9);
     std::cout << "\n";
     std::cout << "Launch vectors (cos)\n";
     PrintTable_(launch_, 1.0);
@@ -433,8 +433,15 @@ namespace c8_tracer
     }
     std::cout << "=|\n";
 
-    for (uint iz = 0; iz < table.size(); iz++)
+    for (uint iz = 0; iz < z_.size(); iz++)
     {
+
+      if (SigFigs_(z_[iz]) > maxLen)
+      {
+        logger.error("Negative sig fig found!");
+        std::cout << maxLen << ' ' << SigFigs_(z_[iz]) << std::endl;
+        return;
+      }
 
       for (uint ispace = 0; ispace < maxLen - SigFigs_(z_[iz]); ispace++)
       {
@@ -442,11 +449,18 @@ namespace c8_tracer
       }
 
       std::cout << int(z_[iz]) << "|| ";
+
       for (uint ir = 0; ir < nRBins_; ir++)
       {
         if (ir)
           std::cout << " | ";
 
+        if (SigFigs_(table[index(ir, iz)] / unit) > maxLen)
+        {
+          logger.error("Negative sig fig found!");
+          std::cout << maxLen << ' ' << SigFigs_(table[index(ir, iz)] / unit) << std::endl;
+          return;
+        }
         for (uint ispace = 0; ispace < maxLen - SigFigs_(table[index(ir, iz)] / unit);
              ispace++)
         {
