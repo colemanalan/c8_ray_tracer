@@ -1,6 +1,3 @@
-import numpy as np
-import matplotlib.pyplot as plt
-
 from c8_tracer import logging
 from c8_tracer import Plane
 from c8_tracer.tracer import RayTracer2D
