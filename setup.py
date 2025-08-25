@@ -10,7 +10,7 @@ from bindings_sources import get_sources
 
 ext_modules = [
     Pybind11Extension(
-        "c8_tracer_py",
+        "c8_tracer",
         get_sources(),
         include_dirs=["include"],
         cxx_std=17,

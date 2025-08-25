@@ -1,12 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from c8_tracer_py import logging
-from c8_tracer_py import Plane
-from c8_tracer_py.tracer import RayTracer2D
-from c8_tracer_py import Vec3
-from c8_tracer_py.environment import EnvironmentBase
-from c8_tracer_py.path import SignalPath
+from c8_tracer import logging
+from c8_tracer import Plane
+from c8_tracer.tracer import RayTracer2D
+from c8_tracer import Vec3
+from c8_tracer.environment import EnvironmentBase
+from c8_tracer.path import SignalPath
 
 # set logging level for the whole library
 logging.logger.set_level(logging.LogLevel.INFO)
