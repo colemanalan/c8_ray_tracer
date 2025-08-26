@@ -1,4 +1,17 @@
-# pyproject.toml
 [build-system]
-requires = ["setuptools", "wheel", "pybind11"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core", "pybind11", "setuptools", "wheel"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "c8_tracer"
+version = "0.1.0"
+description = "Standalone implementation of C8 Ray Tracer"
+authors = [{ name = "Alan Coleman"}]
+readme = "README.md"
+# license = { file = "LICENSE" }
+dependencies = []
+
+[tool.scikit-build]
+cmake.minimum-version = "3.15"
+cmake.build-type = "Release"
+wheel.packages = ["c8_tracer"]
