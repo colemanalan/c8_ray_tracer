@@ -151,7 +151,7 @@ def CreateNRMCInterpolationTable(
         z_bins = int(abs(z_up - z_down) / bin_length + 1)
 
         # cover the whole cylindrical volume
-        r_min = 0.01  # this  should NEVER be exactly zero
+        r_min = 0.5  # this  should NEVER be exactly zero
         r_bins = int(abs(maxR - r_min) / bin_length + 1)
 
         vec_pos = Vec3(pos[0], pos[1], pos[2])

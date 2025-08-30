@@ -15,30 +15,30 @@ namespace c8_tracer
 
     if (nRBins_ < 2)
     {
-      logger.error("Initializing with radius bins n = " + std::to_string(nRBins_));
+      LOG_ERROR("Initializing with radius bins n = " + std::to_string(nRBins_));
       throw std::invalid_argument("Must have >1 bins");
     }
     if (nZBins_ < 2)
     {
-      logger.error("Initializing with z bins n = " + std::to_string(nZBins_));
+      LOG_ERROR("Initializing with z bins n = " + std::to_string(nZBins_));
       throw std::invalid_argument("Must have >1 bins");
     }
 
     if (maxZ_ <= minZ_)
     {
-      logger.error("Max z " + std::to_string(maxZ_) + ", Min z " + std::to_string(minZ_));
+      LOG_ERROR("Max z " + std::to_string(maxZ_) + ", Min z " + std::to_string(minZ_));
       throw std::invalid_argument("Required: max > min");
     }
 
     if (maxR_ <= minR_)
     {
-      logger.error("Max r " + std::to_string(maxR_) + ", Min r " + std::to_string(minR_));
+      LOG_ERROR("Max r " + std::to_string(maxR_) + ", Min r " + std::to_string(minR_));
       throw std::invalid_argument("Required: max > min");
     }
 
     if (minR_ < 0.0)
     {
-      logger.error("Min r " + std::to_string(minR_) + " must be > 0");
+      LOG_ERROR("Min r " + std::to_string(minR_) + " must be > 0");
       throw std::invalid_argument("Min r must be > 0");
     }
 
@@ -68,11 +68,11 @@ namespace c8_tracer
     {
       double const percentUntracked =
           static_cast<float>(untrackedCalls_) / static_cast<float>(totalCalls_) * 100;
-      logger.info("There were " + std::to_string(percentUntracked) + " % of tracks that were not contained within this RayTracingTable");
-      logger.info("Total tracks: " + std::to_string(totalCalls_) + ", not contained tracks: " + std::to_string(untrackedCalls_));
+      LOG_INFO("There were " + std::to_string(percentUntracked) + " % of tracks that were not contained within this RayTracingTable");
+      LOG_INFO("Total tracks: " + std::to_string(totalCalls_) + ", not contained tracks: " + std::to_string(untrackedCalls_));
       if (percentUntracked > 0.2)
       {
-        logger.warning(
+        LOG_WARNING(
             "This percentage is large and may indicate that the table"
             "is not large enough to contain your cascade");
       }
@@ -98,49 +98,55 @@ namespace c8_tracer
 
   inline void RayTracingTable::SetLaunch(double launch, uint ir, uint iz)
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     launch_[index(ir, iz)] = launch;
   }
 
   inline void RayTracingTable::SetReceive(double receive, uint ir, uint iz)
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     receive_[index(ir, iz)] = receive;
   }
 
   inline void RayTracingTable::SetLength(LengthType length, uint ir, uint iz)
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     length_[index(ir, iz)] = length;
   }
 
   inline void RayTracingTable::SetDuration(TimeType duration, uint ir, uint iz)
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     duration_[index(ir, iz)] = duration;
   }
 
   inline void RayTracingTable::SetFresnelS(double fresnelS, uint ir, uint iz)
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     fresnelS_[index(ir, iz)] = fresnelS;
   }
 
   inline void RayTracingTable::SetFresnelP(double fresnelP, uint ir, uint iz)
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     fresnelP_[index(ir, iz)] = fresnelP;
   }
 
@@ -150,49 +156,52 @@ namespace c8_tracer
 
   inline double RayTracingTable::GetLaunch(uint ir, uint iz) const
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     return launch_[index(ir, iz)];
   }
 
   inline double RayTracingTable::GetReceive(uint ir, uint iz) const
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     return receive_[index(ir, iz)];
   }
 
   inline LengthType RayTracingTable::GetLength(uint ir, uint iz) const
   {
-    if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+    if (!IsValid(ir, iz, true))
+    {
+      LOG_ERROR("Index out of range");
+    }
     return length_[index(ir, iz)];
   }
 
   inline TimeType RayTracingTable::GetDuration(uint ir, uint iz) const
   {
     if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+      LOG_ERROR("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
+                " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
     return duration_[index(ir, iz)];
   }
 
   inline double RayTracingTable::GetFresnelS(uint ir, uint iz) const
   {
     if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+      LOG_ERROR("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
+                " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
     return fresnelS_[index(ir, iz)];
   }
 
   inline double RayTracingTable::GetFresnelP(uint ir, uint iz) const
   {
     if (ir >= nRBins_ || iz >= nZBins_)
-      logger.error("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
-                   " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+      LOG_ERROR("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
+                " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
     return fresnelP_[index(ir, iz)];
   }
 
@@ -242,6 +251,20 @@ namespace c8_tracer
     return SignalPath(duration,
                       duration * constants::c / length, // average n
                       n0, nf, startDir, endDir, length, Path(x0), fresnelS, fresnelP);
+  }
+
+  inline bool RayTracingTable::IsValid(uint ir, uint iz, bool warn = false) const
+  {
+    if (ir >= nRBins_ || iz >= nZBins_)
+    {
+      if (warn)
+      {
+        LOG_ERROR("Index out of range R " + std::to_string(ir) + "/" + std::to_string(nRBins_) +
+                  " Z " + std::to_string(iz) + "/" + std::to_string(nZBins_));
+      }
+      return false;
+    }
+    return true;
   }
 
   inline void RayTracingTable::Print() const
@@ -438,7 +461,7 @@ namespace c8_tracer
 
       if (SigFigs_(z_[iz]) > maxLen)
       {
-        logger.error("Negative sig fig found!");
+        LOG_ERROR("Negative sig fig found!");
         std::cout << maxLen << ' ' << SigFigs_(z_[iz]) << std::endl;
         return;
       }
@@ -457,7 +480,7 @@ namespace c8_tracer
 
         if (SigFigs_(table[index(ir, iz)] / unit) > maxLen)
         {
-          logger.error("Negative sig fig found!");
+          LOG_ERROR("Negative sig fig found!");
           std::cout << maxLen << ' ' << SigFigs_(table[index(ir, iz)] / unit) << std::endl;
           return;
         }

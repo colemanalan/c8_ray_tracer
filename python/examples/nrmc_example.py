@@ -4,7 +4,7 @@ from c8_tracer.nrmc_interface import ConvertSignalPath, CreateNRMCInterpolationT
 from c8_tracer.c8_tracer_ext import logging
 
 # Can be quite loud without this
-logging.logger.set_level(logging.LogLevel.ERROR)
+logging.logger.set_level(logging.LogLevel.INFO)
 
 
 # this is a mock up of the NRMC `IceModel` base class

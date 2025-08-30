@@ -32,4 +32,5 @@ void bind_logger(py::module_ &m)
 
   // Expose the singleton as a module-level attribute
   logging.attr("logger") = py::cast(&c8_tracer::logger, py::return_value_policy::reference);
+  logging.attr("logger_tracer") = py::cast(&c8_tracer::logger_tracer, py::return_value_policy::reference);
 }

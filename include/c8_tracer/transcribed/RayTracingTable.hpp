@@ -37,6 +37,8 @@ namespace c8_tracer
     std::tuple<uint, uint> GetIrIz(LengthType const &r, LengthType const &z) const;
     auto const &GetPlane() const { return plane_; }
 
+    bool IsValid(uint ir, uint iz, bool warn) const;
+
     // Interpolators
     double GetLaunch(LengthType const &r, LengthType const &z) const;
     double GetReceive(LengthType const &r, LengthType const &z) const;

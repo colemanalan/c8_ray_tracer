@@ -25,7 +25,7 @@ namespace c8_tracer
     // Check to ensure that this remains a 2D problem
     if (std::abs(layer.getNormal().dot(axis_)) < cos(0.001 * M_PI / 180.))
     {
-      logger.error(
+      TRACER_LOG_ERROR(
           "Cannot add a reflection layer that is not perpendicular"
           "the axis. Layer normal " +
           str(layer.getNormal()) + ", ray tracer symmetry axis " + str(axis_));
@@ -49,7 +49,7 @@ namespace c8_tracer
 
     if (_GetZ(end) > _GetZ(start))
     {
-      logger.debug("(PropagateToPoint) Start " + str(start) + " is above end " + str(end) + ", flipping");
+      TRACER_LOG_DEBUG("(PropagateToPoint) Start " + str(start) + " is above end " + str(end) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
@@ -66,15 +66,15 @@ namespace c8_tracer
     DirectionVector emit1 = seed1;    // initialize
     DirectionVector receive1 = seed1; // initialize
 
-    logger.info("(PropagateToPoint) Finding first solution with seed " + str(seed1));
+    TRACER_LOG_INFO("(PropagateToPoint) Finding first solution with seed " + str(seed1));
     bool const solution1Found =
         FindEmitAndReceive(start, end, env, seed1, emit1, receive1);
-    logger.info("(PropagateToPoint) Returned solution dir " + str(emit1));
+    TRACER_LOG_INFO("(PropagateToPoint) Returned solution dir " + str(emit1));
 
     // If this one failed, the next one is not worth calculating (shadow zone)
     if (!solution1Found)
     {
-      logger.warning("(PropagateToPoint) Direct solution finding failed, won't find second solution");
+      TRACER_LOG_WARNING("(PropagateToPoint) Direct solution finding failed, won't find second solution");
       return signalPaths;
     }
 
@@ -93,16 +93,16 @@ namespace c8_tracer
     DirectionVector emit2 = seed2;
     DirectionVector receive2 = seed2;
 
-    logger.info("(PropagateToPoint) Finding second solution with seed " + str(seed2));
+    TRACER_LOG_INFO("Finding second solution with seed " + str(seed2));
     bool solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
-    logger.info("(PropagateToPoint) Returned solution dir " + str(emit2));
+    TRACER_LOG_INFO("Returned solution dir " + str(emit2));
 
     // if similar, probably found the same solution again
     // do a scan to check for other solution
     if (abs(_GetZ(emit1) - _GetZ(emit2)) < 0.0001)
     {
-      logger.warning(
-          "(PropagateToPoint) Solution 2 is similar to solution 1, performing search for another minimum");
+      TRACER_LOG_WARNING(
+          "Solution 2 is similar to solution 1, performing search for another minimum");
       int const nTest = 5;
       double const dcos = (1 - _GetZ(emit1)) / (nTest + 1);
       for (int itest = 1; itest <= nTest; itest++)
@@ -117,7 +117,7 @@ namespace c8_tracer
           break;
         }
       }
-      logger.info("(PropagateToPoint) After retry, found new solution dir " + str(emit2));
+      TRACER_LOG_INFO("After retry, found new solution dir " + str(emit2));
     }
 
     if (!solution2Found)
@@ -151,14 +151,14 @@ namespace c8_tracer
 
     if (_GetZ(end) > _GetZ(start))
     {
-      logger.trace("(PropagateToPoint) Flipping start/end positions. original start " +
-                   str(sourceXX) + ", original end " + str(targetXX));
+      TRACER_LOG_TRACE("Flipping start/end positions. original start " +
+                          str(sourceXX) + ", original end " + str(targetXX));
       std::swap(start, end);
       flippedStartEnd = true;
 
       ShootOneRayToMinimumZ(start, v1, testPos, testDir, end, env);
-      logger.trace("(PropagateToPoint) Flipping start/end positions. original " + str(testDir.normalized()) +
-                   ", flipped " + str(testDir.normalized() * -1));
+      TRACER_LOG_TRACE("Flipping start/end positions. original " + str(testDir.normalized()) +
+                          ", flipped " + str(testDir.normalized() * -1));
       v1 = v2 = testDir.normalized() * -1;
     }
 
@@ -167,7 +167,7 @@ namespace c8_tracer
 
     if (_GetZ(seed) < -0.99)
     {
-      logger.trace("(PropagateToPoint) Direction close to vertical, setting dcos to " + str(dcos * 0.01));
+      TRACER_LOG_TRACE("Direction close to vertical, setting dcos to " + str(dcos * 0.01));
       dcos *= 0.01;
     }
 
@@ -182,7 +182,7 @@ namespace c8_tracer
 
     // calculate metric for the seed
     dr1 = fireRay(v1);
-    // logger.trace("D1 --> start {}, end {}, testPos {}", start, end, testPos);
+    // TRACER_LOG_TRACE("D1 --> start {}, end {}, testPos {}", start, end, testPos);
 
     // set launch vector #2 as a slight perturbation to calculate derivatie
     auto cosine = _GetZ(v1) + dcos;
@@ -201,12 +201,12 @@ namespace c8_tracer
     v2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
     dr2 = fireRay(v2);
     auto derivative = dcos / (dr1 - dr2);
-    // logger.trace("D2 --> start " + str(start) + ", end " + str(end) + ", testPos " + str(testPos));
+    // TRACER_LOG_TRACE("D2 --> start " + str(start) + ", end " + str(end) + ", testPos " + str(testPos));
 
-    // logger.trace("Start of propagate v1 {}, v2 {}, dr1 {}, dr2 {}", v1, v2, dr1,
+    // TRACER_LOG_TRACE("Start of propagate v1 {}, v2 {}, dr1 {}, dr2 {}", v1, v2, dr1,
     //               dr2);
-    // logger.trace("Start of propagate derivative {}", derivative);
-    // logger.trace("Start cosine value will be {}", cosine + derivative * dr1);
+    // TRACER_LOG_TRACE("Start of propagate derivative {}", derivative);
+    // TRACER_LOG_TRACE("Start cosine value will be {}", cosine + derivative * dr1);
 
     // variables for binary search
     auto closeNegCos = cosine;
@@ -222,16 +222,16 @@ namespace c8_tracer
       // no point in going forward anymore
       if (abs(dcos) < DCOS_TOL)
       {
-        logger.trace("(PropagateToPoint) Numerical precision limit hit, dcos: " + str(dcos));
+        TRACER_LOG_TRACE("Numerical precision limit hit, dcos: " + str(dcos));
         emit = flippedStartEnd ? testDir * -1 : v1;
         receive = flippedStartEnd ? v1 * -1 : testDir;
         emit = emit.normalized();
         receive = receive.normalized();
         numericalDerivativeSteps_ += istep;
 
-        logger.debug("(PropagateToPoint) FOUND SOLUTION based on dcos machine tolerance:  v0 " + str(emit) +
-                     ", pos " + str(testPos) + ", abs 3D dist " +
-                     str((testPos - end).getNorm()));
+        TRACER_LOG_DEBUG("FOUND SOLUTION based on dcos machine tolerance:  v0 " + str(emit) +
+                            ", pos " + str(testPos) + ", abs 3D dist " +
+                            str((testPos - end).getNorm()));
         return true;
       }
 
@@ -241,12 +241,12 @@ namespace c8_tracer
       // keep bounded for large derivatives
       if (cosine + cosineStep > 1)
       {
-        logger.trace("(PropagateToPoint) Step would be above 1, setting cosine to: " + str(0.5 * (1 + cosine)));
+        TRACER_LOG_TRACE("Step would be above 1, setting cosine to: " + str(0.5 * (1 + cosine)));
         cosine = std::min(0.5 * (1 + cosine), 1.0);
       }
       else if (cosine + cosineStep < -1)
       {
-        logger.trace("(PropagateToPoint) Step would be below 1, setting cosine to: " + str(0.5 * (-1.0 + cosine)));
+        TRACER_LOG_TRACE("Step would be below 1, setting cosine to: " + str(0.5 * (-1.0 + cosine)));
         cosine = std::max(-1.0, 0.5 * (-1.0 + cosine));
       }
       else
@@ -268,9 +268,9 @@ namespace c8_tracer
         emit = emit.normalized();
         receive = receive.normalized();
 
-        logger.debug("(PropagateToPoint) FOUND SOLUTION within tol, v0 " + str(emit) +
-                     ", pos " + str(testPos) + ", abs 3D dist " +
-                     str((testPos - end).getNorm()));
+        TRACER_LOG_DEBUG("FOUND SOLUTION within tol, v0 " + str(emit) +
+                            ", pos " + str(testPos) + ", abs 3D dist " +
+                            str((testPos - end).getNorm()));
         numericalDerivativeSteps_ += istep;
         return true;
       }
@@ -287,20 +287,20 @@ namespace c8_tracer
       {
         closeNegErr = dr1;
         closeNegCos = _GetZ(v1);
-        logger.trace("(PropagateToPoint) Step " + str(istep) +
-                     " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
+        TRACER_LOG_TRACE("Step " + str(istep) +
+                            " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
       }
       else if (0.0 < dr1 && (dr1 < closePosErr || 0.0 == closePosErr))
       {
         closePosErr = dr1;
         closePosCos = _GetZ(v1);
-        logger.trace("(PropagateToPoint) Step " + str(istep) + " --> Updating pos binary limit " +
-                     str(closeNegCos) + " " + str(closePosErr));
+        TRACER_LOG_TRACE("Step " + str(istep) + " --> Updating pos binary limit " +
+                            str(closeNegCos) + " " + str(closePosErr));
       }
 
-      logger.trace("(PropagateToPoint) Step " + str(istep) + " --> Binary search values closeNegCos: " +
-                   str(closeNegCos) + " closeNegErr: " + str(closeNegErr) +
-                   " closePosCos: " + str(closePosCos) + "  closePosErr: " + str(closePosErr));
+      TRACER_LOG_TRACE("Step " + str(istep) + " --> Binary search values closeNegCos: " +
+                          str(closeNegCos) + " closeNegErr: " + str(closeNegErr) +
+                          " closePosCos: " + str(closePosCos) + "  closePosErr: " + str(closePosErr));
 
       // If spanning the solution, linear interp using current solutions
       if (dr1 * dr2 < 0.0 * 0.0)
@@ -316,8 +316,8 @@ namespace c8_tracer
                  (closePosErr - closeNegErr);
         derivative *= 0.0;
         dcos *= 0.5;
-        logger.trace(
-            "(PropagateToPoint) Step " + str(istep) + " --> Taking binary step current cos: " +
+        TRACER_LOG_TRACE(
+            "Step " + str(istep) + " --> Taking binary step current cos: " +
             str(_GetZ(v1)) + " next cos: " + str(cosine));
       }
       else
@@ -325,7 +325,7 @@ namespace c8_tracer
 
         if (dr1 == dr2)
         {
-          logger.trace("(PropagateToPoint) Found the same points, derivative inf, returning seed value");
+          TRACER_LOG_TRACE("Found the same points, derivative inf, returning seed value");
           v1 = seed;
           break;
         }
@@ -334,24 +334,24 @@ namespace c8_tracer
         derivative = dcos / (dr1 - dr2);
         cosine = clampCosine(cosine - dcos);
 
-        logger.trace("(PropagateToPoint) Step " + str(istep) + " --> phi " + str(phi) + ", cosine " +
-                     str(cosine) + ", new-cosine " + str(cosine + dcos) + ", derivative " + str(derivative));
+        TRACER_LOG_TRACE("Step " + str(istep) + " --> phi " + str(phi) + ", cosine " +
+                            str(cosine) + ", new-cosine " + str(cosine + dcos) + ", derivative " + str(derivative));
       }
 
       // decrease the step size if the numerical derivative is no longer a small step
       if (abs(dr1) < abs(dr1 - dr2) * 100 && dcos > 1e-10)
       {
         dcos *= 0.05;
-        logger.trace("(PropagateToPoint) Close to the target dr1 " + str(abs(dr1)) + " diff " +
-                     str(abs(dr1 - dr2)) + " dcos " + str(dcos));
+        TRACER_LOG_TRACE("Close to the target dr1 " + str(abs(dr1)) + " diff " +
+                            str(abs(dr1 - dr2)) + " dcos " + str(dcos));
       }
 
-      logger.debug("(PropagateToPoint) Step " + str(istep) + " --> v1 " + str(v1) + ", v2 " + str(v2) +
-                   ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
+      TRACER_LOG_DEBUG("Step " + str(istep) + " --> v1 " + str(v1) + ", v2 " + str(v2) +
+                          ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
     }
 
-    logger.trace("(PropagateToPoint) Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
-                 ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
+    TRACER_LOG_TRACE("Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
+                        ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
 
     numericalDerivativeSteps_ += nSteps;
     emit = flippedStartEnd ? testDir * -1 : v1;
@@ -359,9 +359,9 @@ namespace c8_tracer
     emit = emit.normalized();
     receive = receive.normalized();
 
-    logger.debug("(PropagateToPoint) No solution found, last check was v0 " + str(emit) +
-                 ", pos " + str(testPos) + ", abs 3D dist " +
-                 str((testPos - end).getNorm()));
+    TRACER_LOG_DEBUG("No solution found, last check was v0 " + str(emit) +
+                        ", pos " + str(testPos) + ", abs 3D dist " +
+                        str((testPos - end).getNorm()));
 
     return false;
   }
@@ -370,7 +370,7 @@ namespace c8_tracer
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
-    logger.trace("(FindIntersectionWithPlane) x0 " + str(x0) + ", v0 " + str(v0));
+    TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
 
     constexpr auto closeThreshold = PLANE_CLOSE_TOL; // defines when solution is found
     constexpr uint kMaxInitSteps = 10;               // number of initial steps for bounding root
@@ -453,19 +453,19 @@ namespace c8_tracer
 
       if (abs(distLow) < closeThreshold)
       {
-        logger.trace("(FindIntersectionWithPlane) Finishing at low point! " + str(distLow));
+        TRACER_LOG_TRACE("Finishing at low point! " + str(distLow));
         takeStep(fracLow);
         break;
       }
       else if (abs(distMid) < closeThreshold)
       {
-        logger.trace("(FindIntersectionWithPlane) Finishing at mid point! " + str(distMid));
+        TRACER_LOG_TRACE("Finishing at mid point! " + str(distMid));
         takeStep(fracMid);
         break;
       }
       else if (abs(distHigh) < closeThreshold)
       {
-        logger.trace("(FindIntersectionWithPlane) Finishing at high point! " + str(distHigh));
+        TRACER_LOG_TRACE("Finishing at high point! " + str(distHigh));
         takeStep(fracHigh);
         break;
       }
@@ -474,7 +474,7 @@ namespace c8_tracer
 
       if (distLow * distMid < 0.0 * 0.0)
       {
-        logger.trace("(FindIntersectionWithPlane) Point is btw low/mid " + str(distLow * distMid));
+        TRACER_LOG_TRACE("Point is btw low/mid " + str(distLow * distMid));
         auto delta = distLow - distMid;
         fracHigh = fracMid;
         distHigh = distMid;
@@ -484,7 +484,7 @@ namespace c8_tracer
       }
       else if (distHigh * distMid < 0.0 * 0.0)
       {
-        logger.trace("(FindIntersectionWithPlane) Point is btw mid/high " + str(distHigh * distMid));
+        TRACER_LOG_TRACE("Point is btw mid/high " + str(distHigh * distMid));
         auto delta = distMid - distHigh;
         fracLow = fracMid;
         distLow = distMid;
@@ -495,7 +495,7 @@ namespace c8_tracer
       else
       {
         // happens when you exactly hit the plane
-        logger.trace("(FindIntersectionWithPlane) Finishing at mid point! " + str(distMid));
+        TRACER_LOG_TRACE("Finishing at mid point! " + str(distMid));
         takeStep(fracMid);
         break;
       }
@@ -515,11 +515,11 @@ namespace c8_tracer
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
-    logger.trace("(ReflectOffPlane) Performing reflection starting at x0: " + str(x0) + " v0: " +
-                 str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
+    TRACER_LOG_TRACE("Performing reflection starting at x0: " + str(x0) + " v0: " +
+                        str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
     FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
 
-    logger.trace("(ReflectOffPlane) Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
+    TRACER_LOG_TRACE("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
     auto const n1 = env.get_n(x0);
 
@@ -569,7 +569,7 @@ namespace c8_tracer
       end = end - endDir.normalized() * distanceFromPlane * 1.001 / endDir.normalized().dot(plane.getNormal());
     }
 
-    logger.trace("(ReflectOffPlane) New direction xf " + str(end) + " vf: " + str(endDir));
+    TRACER_LOG_TRACE("New direction xf " + str(end) + " vf: " + str(endDir));
     return {reflectSComp, reflectPComp};
   }
 
@@ -698,7 +698,7 @@ namespace c8_tracer
     LengthType stepSize = INITAL_STEP_SIZE;
     LengthType prevStep = stepSize;
 
-    logger.trace("(ShootOneRayToMinimumZ) x0 " + str(start) + ", v0 " + str(startDir) + ", minZ " + str(minZ));
+    TRACER_LOG_TRACE("x0 " + str(start) + ", v0 " + str(startDir) + ", minZ " + str(minZ));
 
     uint constexpr maxSteps = 10000;
     uint istep = 0;
@@ -719,12 +719,12 @@ namespace c8_tracer
         {
           stepSize = prevStep;
 
-          logger.trace("(ShootOneRayToMinimumZ) Entered reflection loop between " +
-                       str(x0) + " and " + str(end) + ", step size " + str(stepSize));
+          TRACER_LOG_TRACE("Entered reflection loop between " +
+                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
           if ((x0 - plane.getCenter()).dot(plane.getNormal()) < 0.0)
           {
-            logger.error("(ShootOneRayToMinimumZ) First point should not be on this side of plane " +
-                         str(x0) + "  " + str((x0 - plane.getCenter()).dot(plane.getNormal())));
+            TRACER_LOG_ERROR("First point should not be on this side of plane " +
+                                str(x0) + "  " + str((x0 - plane.getCenter()).dot(plane.getNormal())));
             throw std::invalid_argument("Wrong!");
           }
           ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
@@ -733,7 +733,7 @@ namespace c8_tracer
 
       if (istep == maxSteps)
       {
-        logger.debug("(ShootOneRayToMinimumZ) max steps have been used, stopping");
+        TRACER_LOG_DEBUG("max steps have been used, stopping");
         break;
       }
     } while ((end - minimumPlane.getCenter()).dot(minimumPlane.getNormal()) >
@@ -748,8 +748,8 @@ namespace c8_tracer
     // Find the crossing point
     if (maxSteps > istep)
     {
-      logger.trace("(ShootOneRayToMinimumZ) point found below the plane x0: " + str(x0) +
-                   ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+      TRACER_LOG_TRACE("point found below the plane x0: " + str(x0) +
+                          ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
       FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
     }
     // RAY_TRACER_PRINT("Corrected, xf {}, vf {}, dist {}", end, endDir,
@@ -837,7 +837,7 @@ namespace c8_tracer
   {
 
     Path path(start);
-    logger.debug("(GetSignalPath) Making signal path using emit: " + str(startDir) + " from " + str(start) + " to " + str(target));
+    TRACER_LOG_DEBUG("Making signal path using emit: " + str(startDir) + " from " + str(start) + " to " + str(target));
 
     auto const targetZ = _GetZ(target);
 
@@ -851,7 +851,7 @@ namespace c8_tracer
 
     if (_GetZ(start) < targetZ)
     {
-      logger.warning("(GetSignalPath) Asking to propagate with an initial position below the target");
+      TRACER_LOG_WARNING("Asking to propagate with an initial position below the target");
     }
 
     LengthType constexpr initialStepSize = INITAL_STEP_SIZE;
@@ -876,7 +876,7 @@ namespace c8_tracer
       propLength += dist;
     };
 
-    logger.debug("(GetSignalPath) Going from " + str(_GetZ(end)) + " to " + str(targetZ));
+    TRACER_LOG_DEBUG("Going from " + str(_GetZ(end)) + " to " + str(targetZ));
 
     while (_GetZ(end) > targetZ && istep < maxSteps)
     {
@@ -904,7 +904,7 @@ namespace c8_tracer
       }
     }
 
-    logger.debug("(GetSignalPath) Finding final intersection with plane using x0:" + str(x0) + ", v0: " + str(v0));
+    TRACER_LOG_DEBUG("Finding final intersection with plane using x0:" + str(x0) + ", v0: " + str(v0));
     // Final intersection if not capped
     if (istep < maxSteps)
     {
@@ -940,11 +940,11 @@ namespace c8_tracer
 
   inline void RayTracer2D::PrintProfiling()
   {
-    logger.info("  Steps to find correct ray path " + std::to_string(numericalDerivativeSteps_));
-    logger.info("           Total rays propagated " + std::to_string(raysPropagated_));
-    logger.info("               Total steps taken " + std::to_string(stepsTaken_));
-    logger.info("Steps finding reflection surface " + std::to_string(binarySearchReflection_));
-    logger.info("    Steps finding stopping point " + std::to_string(binarySearchBoundary_));
+    TRACER_LOG_INFO("  Steps to find correct ray path " + std::to_string(numericalDerivativeSteps_));
+    TRACER_LOG_INFO("           Total rays propagated " + std::to_string(raysPropagated_));
+    TRACER_LOG_INFO("               Total steps taken " + std::to_string(stepsTaken_));
+    TRACER_LOG_INFO("Steps finding reflection surface " + std::to_string(binarySearchReflection_));
+    TRACER_LOG_INFO("    Steps finding stopping point " + std::to_string(binarySearchBoundary_));
   }
 
   inline void RayTracer2D::ResetProfiling()

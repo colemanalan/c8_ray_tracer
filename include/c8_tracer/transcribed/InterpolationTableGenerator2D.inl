@@ -75,9 +75,9 @@ namespace c8_tracer
     double const totalCells = double(nRBins) * nZBins;
     uint progressSteps = 0;
 
-    logger.info("Generating table for antenna at " + std::to_string(antennaPos));
-    logger.info("--> min R: " + std::to_string(minR) + ", max R: " + std::to_string(maxR) + ", N: " + std::to_string(nRBins));
-    logger.info("--> min Z: " + std::to_string(minZ) + ", max Z: " + std::to_string(maxZ) + ", N: " + std::to_string(nZBins));
+    LOG_INFO("Generating table for antenna at " + std::to_string(antennaPos));
+    LOG_INFO("--> min R: " + std::to_string(minR) + ", max R: " + std::to_string(maxR) + ", N: " + std::to_string(nRBins));
+    LOG_INFO("--> min Z: " + std::to_string(minZ) + ", max Z: " + std::to_string(maxZ) + ", N: " + std::to_string(nZBins));
 
     // Try once to find unique solutions for each point
     bool atLeastOneFound = false;
@@ -102,9 +102,9 @@ namespace c8_tracer
         Point const target =
             start + perpUnit * tables[0].GetR(ir) + axis_ * tables[0].GetZ(iz);
 
-        logger.debug("Start " + std::to_string(start));
-        logger.debug("Target " + std::to_string(target));
-        logger.debug("N " + std::to_string(env_.get_n(start)));
+        LOG_DEBUG("Start " + std::to_string(start));
+        LOG_DEBUG("Target " + std::to_string(target));
+        LOG_DEBUG("N " + std::to_string(env_.get_n(start)));
 
         auto const signalPaths = rayTracer_.PropagateToPoint(start, target, env_);
 
@@ -116,8 +116,8 @@ namespace c8_tracer
 
         if (tables.size() < signalPaths.size())
         {
-          logger.debug("Table size (" + std::to_string(tables.size()) +
-                       ") is less than the number of solutions (" + std::to_string(signalPaths.size()) + ")");
+          LOG_DEBUG("Table size (" + std::to_string(tables.size()) +
+                    ") is less than the number of solutions (" + std::to_string(signalPaths.size()) + ")");
           throw std::runtime_error("Table/solution size mismatch!");
         }
 
@@ -135,6 +135,8 @@ namespace c8_tracer
           continue;
         }
 
+        atLeastOneFound = true;
+
         for (size_t i = 0; i < signalPaths.size(); ++i)
         {
           FillTables_(tables[i], ir, iz, signalPaths[i]);
@@ -146,11 +148,17 @@ namespace c8_tracer
 
     if (!atLeastOneFound)
     {
-      logger.warning("No valid solutions were found to generate the table. Quitting...");
+      LOG_WARNING("No valid solutions were found to generate the table. Quitting...");
       return tables;
     }
 
-    logger.info("After first pass, number of missing entries " + std::to_string(nMissing));
+    if (!nMissing)
+    {
+      LOG_INFO("All entries created. Table generated.");
+      return tables;
+    }
+
+    LOG_INFO("After first pass, number of missing entries " + std::to_string(nMissing));
 
     // Loop 2, look again for solutions by using estimates from nearby nodes
 
@@ -173,23 +181,26 @@ namespace c8_tracer
           // skip existing
           if (tables[isol].GetLength(ir, iz) > 0.0)
           {
+            LOG_TRACE("Solution exists at " + std::to_string(ir) + ' ' + std::to_string(iz));
             continue;
           }
 
           if (shadowZone)
           {
             nMissing++;
+            LOG_TRACE("In shadow zone " + std::to_string(ir) + ' ' + std::to_string(iz));
             continue;
           }
 
           double costheta = EstimateLaunchAngle_(ir, iz, tables[isol]);
 
-          // CORSIKA_LOG_DEBUG("Working on {} {} {}", tables[0].GetZ(iz), tables[0].GetR(ir),
-          //                   costheta);
+          LOG_TRACE("Working on " + std::to_string(tables[0].GetZ(iz)) + ' ' +
+                    std::to_string(tables[0].GetR(ir)) + ' ' + std::to_string(costheta));
 
           if (!costheta)
           {
             nMissing++;
+            LOG_TRACE("costheta is zero");
             continue;
           }
 
@@ -209,15 +220,16 @@ namespace c8_tracer
           if (!foundSolution || (path.getEnd() - target).getNorm() > 0.01)
           {
 
-            logger.info("Bad path, Z " + std::to_string(tables[0].GetZ(iz)) + " R " +
-                        std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
-                        ", success " + std::string(foundSolution ? "True" : "False") +
-                        ", diff " + std::to_string((path.getEnd() - target).getNorm()));
+            LOG_INFO("Bad path, Z " + std::to_string(tables[0].GetZ(iz)) + " R " +
+                     std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
+                     ", success " + std::string(foundSolution ? "True" : "False") +
+                     ", diff " + std::to_string((path.getEnd() - target).getNorm()));
             shadowZone = true; // All further radii on this row will be failures
             nMissing++;
           }
           else
           {
+            LOG_TRACE("FILLING TABLE FOR SOLUTION " + std::to_string(isol));
             FillTables_(tables[isol], ir, iz, path);
           }
 
@@ -225,7 +237,7 @@ namespace c8_tracer
       } // End for r bin
     } // End for z bin
 
-    logger.info("After second pass, number of missing entries " + std::to_string(nMissing / 2));
+    LOG_INFO("After second pass, number of missing entries " + std::to_string(nMissing / 2));
 
     return tables;
   }
@@ -340,9 +352,9 @@ namespace c8_tracer
     auto getLaunchZ = [&](int i)
     { return table.GetLaunch(ir, i); };
     auto validR = [&](int i)
-    { return table.GetLaunch(i, iz); };
+    { return table.IsValid(i, iz); };
     auto validZ = [&](int i)
-    { return table.GetLaunch(ir, i); };
+    { return table.IsValid(ir, i); };
 
     // r-direction
     est.add(Interpolate(table.GetR(ir), ir - 1, ir + 1, getR, getLaunchR, validR));
