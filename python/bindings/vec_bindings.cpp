@@ -45,6 +45,15 @@ void bind_vec(py::module_ &m)
      // Vec3
      py::class_<Vec3>(m, "Vec3", "3D vector")
          .def(py::init<double, double, double>())
+         .def(py::init([](py::iterable iterable)
+                       {
+        std::vector<double> values;
+        for (auto item : iterable)
+            values.push_back(py::cast<double>(item));
+        if (values.size() != 3)
+            throw std::runtime_error("Vec3 requires an iterable of length 3");
+        return Vec3(values[0], values[1], values[2]); }),
+              "Initialize from any iterable of 3 numbers")
          .def_readwrite("x", &Vec3::x)
          .def_readwrite("y", &Vec3::y)
          .def_readwrite("z", &Vec3::z)

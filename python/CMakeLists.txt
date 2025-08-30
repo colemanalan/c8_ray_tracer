@@ -32,13 +32,8 @@ target_link_libraries(c8_tracer_ext
     Python3::Python
 )
 
-
-# file(GLOB BINDING_SOURCES bindings/*.cpp)
-
-# pybind11_add_module(c8_tracer_ext ${SOURCE_LIST})
-# target_include_directories(c8_tracer_ext PRIVATE ${PROJECT_SOURCE_DIR}/include)
-
-
 set_target_properties(c8_tracer_ext PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/c8_tracer
 )
+install(TARGETS c8_tracer_ext
+    LIBRARY DESTINATION c8_tracer)
