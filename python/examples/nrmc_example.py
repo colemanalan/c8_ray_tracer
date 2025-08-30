@@ -19,6 +19,7 @@ class DummyIceModel:
         return np.zeros(3)
 
 
+# would normally come from the NRMC simulation settings
 ice_model = DummyIceModel()
 antennas = [
     np.array([50.0, 0.0, -100.0]),
@@ -27,6 +28,7 @@ antennas = [
 ]
 shower_pos = np.array([-50.0, 0.0, -150.0])
 
+# This will create the tables and return a function that smoothly converts to/from NRMC
 get_path_to_antenna = CreateNRMCInterpolationTable(
     ice_model,
     antennas,
@@ -38,7 +40,7 @@ get_path_to_antenna = CreateNRMCInterpolationTable(
     max_step=10.0,
 )
 
-# this would be the main loop in the NRMC code
+# would be the main loop in the NRMC code
 for ant_pos in antennas:
     signal_paths = get_path_to_antenna(shower_pos, ant_pos)
 
