@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from c8_tracer.c8_tracer_ext import Vec3
@@ -39,7 +41,7 @@ def CreateNRMCRayTracer(
     :param nrmc_model: any NRMC ice model that inherits from `IceModel`
     :param min_step: smallest step size that will be taken during propagation (meters)
     :param max_step: largest step size that will be taken during propagation (meters)
-    :param max_tolerancestep: relative error tolerance that defines the adaptive step size
+    :param tolerance: relative error tolerance that defines the adaptive step size
 
     :return: initialized instance of a C8 raytracer
     """
@@ -71,7 +73,7 @@ def CreateNRMCWrappedRayTracer(
     :param nrmc_model: any NRMC ice model that inherits from `IceModel`
     :param min_step: smallest step size that will be taken during propagation (meters)
     :param max_step: largest step size that will be taken during propagation (meters)
-    :param max_tolerancestep: relative error tolerance that defines the adaptive step size
+    :param tolerance: relative error tolerance that defines the adaptive step size
 
     :return: function that wraps an initialized ray tracer. The function takes two
     np.ndarrays as pos1 and pos2 and returns the direct and refracted solutions
@@ -92,7 +94,7 @@ def CreateNRMCWrappedRayTracer(
 
         return dir_sol, ref_sol
 
-    return trace_to_point
+    return trace_to_point, ray_tracer
 
 
 def CreateNRMCInterpolationTable(
@@ -121,7 +123,7 @@ def CreateNRMCInterpolationTable(
 
     :param min_step: smallest step size that will be taken during propagation (meters)
     :param max_step: largest step size that will be taken during propagation (meters)
-    :param max_tolerancestep: relative error tolerance that defines the adaptive step size
+    :param tolerance: relative error tolerance that defines the adaptive step size
 
     :return: function that can be queried, `get_path_to_antenna(start_pos, ant_pos)`
     and will return two signals paths. Signals paths that are `None` denote no solution
