@@ -1,5 +1,3 @@
-import logging
-
 import numpy as np
 
 from c8_tracer.c8_tracer_ext import Vec3
