@@ -134,9 +134,21 @@ namespace c8_tracer
 
   inline std::tuple<std::vector<DirectionVector>, std::vector<DirectionVector>>
   RayTracer2D::FindEmitAndReceiveBrent(
-      Point const &start, Point const &target, EnvironmentBase const &env,
+      Point const &startInit, Point const &targetInit, EnvironmentBase const &env,
       uint nRaysInit, int maxIterations)
   {
+
+    Point start = startInit;
+    Point target = targetInit;
+    bool flippedStartEnd = false;
+
+    if (_GetZ(target) > _GetZ(start))
+    {
+      TRACER_LOG_DEBUG("Flipping start/end positions. original start " +
+                       str(startInit) + ", original end " + str(targetInit));
+      std::swap(start, target);
+      flippedStartEnd = true;
+    }
 
     DirectionVector testDir;
     Point testPos = target;
@@ -176,7 +188,7 @@ namespace c8_tracer
     {
       std::vector<double> x_vals(nRays);
 
-      for (uint isol = 0; isol < nRays; isol++)
+      for (int isol = 0; isol < nRays; isol++)
       {
         // set up initial ray direction. Pull solutions from cache if available or calculate
         x_vals[isol] = std::clamp(cosMin + isol * (cosMax - cosMin) / double(nRays - 1.0), -1.0, 1.0);
@@ -213,8 +225,10 @@ namespace c8_tracer
         if (f0 * f1 < 0.0 || std::abs(f0) < CLOSE_TOL || std::abs(f1) < CLOSE_TOL)
         {
           auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, CLOSE_TOL);
-          foundEmit.push_back(DirectionVector(std::sqrt(1.0 - cosine * cosine), 0.0, cosine));
-          foundReceive.push_back(testDir);
+          auto const emit = DirectionVector(std::sqrt(1.0 - cosine * cosine), 0.0, cosine);
+
+          foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
+          foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
         }
       }
 
@@ -265,7 +279,8 @@ namespace c8_tracer
       iteration++;
     }
 
-    TRACER_LOG_INFO("Solution finding failed after shooting " + str(cachedSamples.size()) + " total rays");
+    TRACER_LOG_INFO("Solution finding failed after shooting " + str(cachedSamples.size()) +
+                    " total rays. Current dcos = " + str((cosMax - cosMin) / float(nRays)));
     return std::make_tuple(std::vector<DirectionVector>{}, std::vector<DirectionVector>{});
   }
 
