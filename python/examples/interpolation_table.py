@@ -1,11 +1,11 @@
 from c8_tracer import logging
 from c8_tracer import Plane
-from c8_tracer.tracer import RayTracer2D
-from c8_tracer.tables import InterpolationTableGenerator2D
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext.tables import InterpolationTableGenerator2D
 from c8_tracer import Vec3
-from c8_tracer.environment import CartesianSingleExponentialEnvironment
+from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
 
-logging.logger.set_level(logging.LogLevel.ERROR)
+logging.logger.set_level(logging.LogLevel.INFO)
 
 # set up the exponential profile
 # n(z) = n_deep - delta_n * exp((z - z0) / length_scale)
@@ -42,11 +42,11 @@ table_gen = InterpolationTableGenerator2D(ray_tracer, env)
 antenna_pos = Vec3(0, 0, -100)
 
 min_r = 1
-max_r = 300
-n_bins_r = 13
-min_z = -200  # negative values cover locations below the antenna
+max_r = 500
+n_bins_r = 17
+min_z = -300  # negative values cover locations below the antenna
 max_z = -antenna_pos.z - 1  # 1m below the reflection plane
-n_bins_z = 9
+n_bins_z = 15
 tables = table_gen.GenerateTables(
     min_r, max_r, n_bins_r, min_z, max_z, n_bins_z, antenna_pos
 )

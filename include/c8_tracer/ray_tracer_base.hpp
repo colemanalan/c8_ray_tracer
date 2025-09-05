@@ -64,6 +64,20 @@ namespace c8_tracer
     */
     virtual SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
                                      Point const &target, EnvironmentBase const &env) = 0;
+
+    /*
+    This is the replacement of PropagateToPoint to get ray paths from `start` to `end`
+
+    Arguments:
+      start:
+        starting location of the launch point
+      end:
+        the target location for the propagation
+      env:
+        description of the refractive index and gradient
+    */
+    virtual std::vector<SignalPath> GetSignalPaths(Point const &start, Point const &end,
+                                                   EnvironmentBase const &env) = 0;
   };
 
 }

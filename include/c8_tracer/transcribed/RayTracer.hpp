@@ -30,7 +30,7 @@ namespace c8_tracer
 
     */
     RayTracer2D(DirectionVector const axis, LengthType const minStep,
-                LengthType const maxStep, double const tolerance);
+                LengthType const maxStep, double const tolerance, int const brentRays);
     ~RayTracer2D() {}
 
     /*
@@ -52,6 +52,9 @@ namespace c8_tracer
     */
     std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
                                              EnvironmentBase const &env) override;
+
+    std::vector<SignalPath> GetSignalPaths(Point const &start, Point const &end,
+                                           EnvironmentBase const &env) override;
 
     /*
     Finds the initial propagation direction such that a ray propagates from `start` to
@@ -85,7 +88,7 @@ namespace c8_tracer
     `end`. This shoots several initial rays to find rays that bound the solutions and
     then used the Brent Method to ultimately find the optimal path(s). If no solutions
     are found after the initial rays are cast, the angular bounds will be updated
-    to keep the interval that includes the top 3 solutions and casts another set of nRays 
+    to keep the interval that includes the top 3 solutions and casts another set of nRays
 
     Arguments:
       start:
@@ -264,6 +267,8 @@ namespace c8_tracer
   private:
     CashKarpIntegrator tracer_;
     std::vector<Plane> reflectionLayers_;
+
+    int nRays_;
 
     // profiling parameters
     unsigned long int raysPropagated_ = 0;

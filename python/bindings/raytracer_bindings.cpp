@@ -54,6 +54,18 @@ public:
         GetSignalPath,
         start, startDir, target, env);
   }
+
+  std::vector<SignalPath> GetSignalPaths(
+      const Point &start,
+      const Point &end,
+      const EnvironmentBase &env) override
+  {
+    PYBIND11_OVERRIDE_PURE(
+        std::vector<SignalPath>,
+        RayTracerBase,
+        GetSignalPaths,
+        start, end, env);
+  }
 };
 
 void bind_raytracer(py::module_ &m)
@@ -66,25 +78,25 @@ void bind_raytracer(py::module_ &m)
       .def("PropagateToPoint", &c8_tracer::RayTracerBase::PropagateToPoint)
       .def("FindEmitAndReceive", &c8_tracer::RayTracerBase::FindEmitAndReceive)
       .def("GetSignalPath", &c8_tracer::RayTracerBase::GetSignalPath)
+      .def("GetSignalPaths", &c8_tracer::RayTracerBase::GetSignalPaths)
       .def("GetAxis", &RayTracer2D::GetAxis);
 
   // RayTracer2D
   py::class_<RayTracer2D, RayTracerBase>(tracer, "RayTracer2D")
-      .def(py::init<DirectionVector, LengthType, LengthType, double>(),
+      .def(py::init<DirectionVector, LengthType, LengthType, double, int>(),
            py::arg("direction"),
            py::arg("minStep") = 0.0001,
            py::arg("maxStep") = 10.0,
-           py::arg("tolerance") = 1e-8)
+           py::arg("tolerance") = 1e-8,
+           py::arg("nRays") = 13)
       .def("AddReflectionLayer", &RayTracer2D::AddReflectionLayer)
-      .def("ShootOneRayToMaximumR", &RayTracer2D::ShootOneRayToMaximumR)
-      .def("ShootOneRayToMinimumZ", &RayTracer2D::ShootOneRayToMinimumZ)
       .def("FindEmitAndReceiveBrent", &RayTracer2D::FindEmitAndReceiveBrent)
-      .def("FindIntersectionWithPlane", &RayTracer2D::FindIntersectionWithPlane)
-      .def("ReflectOffPlane", &RayTracer2D::ReflectOffPlane)
-      .def("FindRadius", &RayTracer2D::FindRadius)
       .def("Get2DProjection", &RayTracer2D::Get2DProjection)
       .def("Get2DRadialDistance", &RayTracer2D::Get2DRadialDistance)
+      .def("GetSignalPaths", &RayTracer2D::GetSignalPaths)
       .def("PrintProfiling", &RayTracer2D::PrintProfiling)
-      .def("ResetProfiling", &RayTracer2D::ResetProfiling);
+      .def("ResetProfiling", &RayTracer2D::ResetProfiling)
+      .def("ShootOneRayToMaximumR", &RayTracer2D::ShootOneRayToMaximumR)
+      .def("ShootOneRayToMinimumZ", &RayTracer2D::ShootOneRayToMinimumZ);
   ;
 }

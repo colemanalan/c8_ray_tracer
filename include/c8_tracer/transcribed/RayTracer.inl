@@ -18,8 +18,9 @@ namespace c8_tracer
   inline RayTracer2D::RayTracer2D(DirectionVector const axis,
                                   LengthType const minStep = 0.0001,
                                   LengthType const maxStep = 10.0,
-                                  double const tolerance = 1e-8)
-      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance) {}
+                                  double const tolerance = 1e-8,
+                                  int const brentRays = 13)
+      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays) {}
 
   inline void RayTracer2D::AddReflectionLayer(Plane const layer)
   {
@@ -34,6 +35,48 @@ namespace c8_tracer
     }
 
     reflectionLayers_.push_back(layer);
+  }
+
+  inline std::vector<SignalPath> RayTracer2D::GetSignalPaths(Point const &sourceXX,
+                                                             Point const &targetXX,
+                                                             EnvironmentBase const &env)
+  {
+    std::vector<SignalPath> signalPaths;
+    signalPaths.reserve(2);
+
+    bool flippedStartEnd = false;
+    Point start = sourceXX;
+    Point end = targetXX;
+
+    if (_GetZ(end) > _GetZ(start))
+    {
+      TRACER_LOG_DEBUG("Start " + str(start) + " is above end " + str(end) + ", flipping");
+      std::swap(start, end);
+      flippedStartEnd = true;
+    }
+
+    // 4 iterations of 11 rays will find solutions that are at least separated by 0.000855
+    auto const [foundEmit, foundReceive] = FindEmitAndReceiveBrent(start, end, env, nRays_, 4);
+
+    TRACER_LOG_INFO("Creatings paths for " + str(foundEmit.size()) + " solutions");
+
+    if (foundEmit.size())
+    {
+      for (uint i = 0; i < foundEmit.size(); i++)
+      {
+        auto const path = GetSignalPath(start, foundEmit[i], end, env);
+        signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path) : path);
+      }
+
+      // sort results by propagation time
+      std::sort(signalPaths.begin(), signalPaths.end(),
+                [](auto const &a, auto const &b)
+                {
+                  return std::abs(a.propagation_time_) < std::abs(b.propagation_time_);
+                });
+    }
+
+    return signalPaths;
   }
 
   inline std::vector<SignalPath> RayTracer2D::PropagateToPoint(Point const &sourceXX,
@@ -168,6 +211,13 @@ namespace c8_tracer
     {
       auto const startDir = makeDirVec(cosine);
       ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
+
+      // handle when the ray never comes back down.
+      if (_GetZ(testPos) > _GetZ(startDir))
+      {
+        return Get2DRadialDistance(start, target, start);
+      }
+
       auto const dist = Get2DRadialDistance(start, target, testPos);
       TRACER_LOG_TRACE("Testing cos = " + str(cosine) + " R_err = " + str(dist));
       return dist;

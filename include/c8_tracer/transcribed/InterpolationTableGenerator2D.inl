@@ -106,7 +106,7 @@ namespace c8_tracer
         LOG_DEBUG("Target " + std::to_string(target));
         LOG_DEBUG("N " + std::to_string(env_.get_n(start)));
 
-        auto const signalPaths = rayTracer_.PropagateToPoint(start, target, env_);
+        auto const signalPaths = rayTracer_.GetSignalPaths(start, target, env_);
 
         if (signalPaths.empty())
         {
@@ -220,7 +220,7 @@ namespace c8_tracer
           if (!foundSolution || (path.getEnd() - target).getNorm() > 0.01)
           {
 
-            LOG_INFO("Bad path, Z " + std::to_string(tables[0].GetZ(iz)) + " R " +
+            LOG_DEBUG("Bad path, Z " + std::to_string(tables[0].GetZ(iz)) + " R " +
                      std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
                      ", success " + std::string(foundSolution ? "True" : "False") +
                      ", diff " + std::to_string((path.getEnd() - target).getNorm()));
