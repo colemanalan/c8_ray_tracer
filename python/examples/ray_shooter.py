@@ -1,0 +1,63 @@
+from c8_tracer.c8_tracer_ext import logging
+
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext import Vec3, Plane
+from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
+from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
+
+
+class AirAndIce(EnvironmentBase):
+    def __init__(self):
+        super().__init__()
+        n_deep = 1.78
+        delta_n = 0.423
+        length_scale = 77.0
+        axis = Vec3(0, 0, 1)
+        ref_point = Vec3(0, 0, 0)
+        self.ice = CartesianSingleExponentialEnvironment(
+            n_deep,
+            delta_n,
+            length_scale,
+            axis,
+            ref_point,
+        )
+
+    def get_n(self, pos: Vec3) -> float:
+        if pos.z > 0.0:
+            return 1.0001
+
+        return self.ice.get_n(pos)
+
+    def get_grad_n(self, pos: Vec3) -> Vec3:
+        if pos.z > 0.0:
+            return Vec3(0, 0, 0)
+
+        return self.ice.get_grad_n(pos)
+
+
+env = AirAndIce()
+
+# make the ray tracer
+axis_of_symmetry = Vec3(0, 0, 1)  # z_hat
+min_step = 0.0001  # smallest step size that will be taken
+max_step = 1.0  # largest step size that will be taken
+tolerance = 1e-8  # relative error tolerance that defines the adaptive step size
+ray_tracer = RayTracer2D(axis_of_symmetry, min_step, max_step)
+
+# make a reflection plane at the origin facing downwards
+center = Vec3(0, 0, 0)
+normal = Vec3(0, 0, -1)
+plane = Plane(center, normal)
+ray_tracer.AddReflectionLayer(plane)
+
+start = Vec3(0, 0, 50)  # Start in the air
+target = Vec3(300, 0, -2000)
+startDir = Vec3(1, 0, -1).normalized()  # Head down into the ice
+
+testPos = Vec3(0, 0, 0)
+testDir = Vec3(0, 0, 0)
+
+logging.logger_tracer.set_level(logging.LogLevel.TRACE)
+
+ray_tracer.ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env)
+print("Final pos:", testPos)
