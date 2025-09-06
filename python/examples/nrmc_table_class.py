@@ -92,6 +92,7 @@ class C8RayTracerIndividual(ray_tracing_base):
         self._paths = None
 
     def find_solutions(self):
+        # this might need to be X2, X2. I am not sure what order NRMC uses
         self._results = self._trace_to_point(self._X1, self._X2)
         self._paths = [None] * len(self._results)
 
