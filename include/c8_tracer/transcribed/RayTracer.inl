@@ -2,6 +2,7 @@
 
 #include "c8_tracer/logger.hpp"
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
+#include "c8_tracer/transcribed/brent.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
 
 #define CLOSE_TOL 0.00001
@@ -17,8 +18,9 @@ namespace c8_tracer
   inline RayTracer2D::RayTracer2D(DirectionVector const axis,
                                   LengthType const minStep = 0.0001,
                                   LengthType const maxStep = 10.0,
-                                  double const tolerance = 1e-8)
-      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance) {}
+                                  double const tolerance = 1e-8,
+                                  int const brentRays = 13)
+      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays) {}
 
   inline void RayTracer2D::AddReflectionLayer(Plane const layer)
   {
@@ -33,6 +35,48 @@ namespace c8_tracer
     }
 
     reflectionLayers_.push_back(layer);
+  }
+
+  inline std::vector<SignalPath> RayTracer2D::GetSignalPaths(Point const &sourceXX,
+                                                             Point const &targetXX,
+                                                             EnvironmentBase const &env)
+  {
+    std::vector<SignalPath> signalPaths;
+    signalPaths.reserve(2);
+
+    bool flippedStartEnd = false;
+    Point start = sourceXX;
+    Point end = targetXX;
+
+    if (_GetZ(end) > _GetZ(start))
+    {
+      TRACER_LOG_DEBUG("Start " + str(start) + " is above end " + str(end) + ", flipping");
+      std::swap(start, end);
+      flippedStartEnd = true;
+    }
+
+    // 4 iterations of 11 rays will find solutions that are at least separated by 0.000855
+    auto const [foundEmit, foundReceive] = FindEmitAndReceiveBrent(start, end, env, nRays_, 4);
+
+    TRACER_LOG_INFO("Creatings paths for " + str(foundEmit.size()) + " solutions");
+
+    if (foundEmit.size())
+    {
+      for (uint i = 0; i < foundEmit.size(); i++)
+      {
+        auto const path = GetSignalPath(start, foundEmit[i], end, env);
+        signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path) : path);
+      }
+
+      // sort results by propagation time
+      std::sort(signalPaths.begin(), signalPaths.end(),
+                [](auto const &a, auto const &b)
+                {
+                  return std::abs(a.propagation_time_) < std::abs(b.propagation_time_);
+                });
+    }
+
+    return signalPaths;
   }
 
   inline std::vector<SignalPath> RayTracer2D::PropagateToPoint(Point const &sourceXX,
@@ -131,6 +175,165 @@ namespace c8_tracer
     return signalPaths;
   }
 
+  inline std::tuple<std::vector<DirectionVector>, std::vector<DirectionVector>>
+  RayTracer2D::FindEmitAndReceiveBrent(
+      Point const &startInit, Point const &targetInit, EnvironmentBase const &env,
+      uint nRaysInit, int maxIterations)
+  {
+
+    Point start = startInit;
+    Point target = targetInit;
+    bool flippedStartEnd = false;
+
+    if (_GetZ(target) > _GetZ(start))
+    {
+      TRACER_LOG_DEBUG("Flipping start/end positions. original start " +
+                       str(startInit) + ", original end " + str(targetInit));
+      std::swap(start, target);
+      flippedStartEnd = true;
+    }
+
+    DirectionVector testDir;
+    Point testPos = target;
+
+    auto const dr = target - start;
+    auto const phi =
+        atan2(static_cast<double>(dr.y), static_cast<double>(dr.x));
+
+    auto makeDirVec = [&](double cosine)
+    {
+      auto const sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
+      return DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
+    };
+
+    // construct a distance function
+    auto dist2D = [&](double cosine)
+    {
+      auto const startDir = makeDirVec(cosine);
+      ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
+
+      // handle when the ray never comes back down.
+      if (_GetZ(testPos) > _GetZ(startDir))
+      {
+        return Get2DRadialDistance(start, target, start);
+      }
+
+      auto const dist = Get2DRadialDistance(start, target, testPos);
+      TRACER_LOG_TRACE("Testing cos = " + str(cosine) + " R_err = " + str(dist));
+      return dist;
+    };
+
+    std::map<double, LengthType>
+        cachedSamples; // holds solutions to avoid duplicate math
+
+    int iteration = 0;
+
+    double cosMin = -1.0;
+    double cosMax = 1.0;
+    int nRays = nRaysInit;
+
+    TRACER_LOG_INFO("Finding solution using " + std::to_string(nRays) + " rays");
+
+    while (iteration < maxIterations)
+    {
+      std::vector<double> x_vals(nRays);
+
+      for (int isol = 0; isol < nRays; isol++)
+      {
+        // set up initial ray direction. Pull solutions from cache if available or calculate
+        x_vals[isol] = std::clamp(cosMin + isol * (cosMax - cosMin) / double(nRays - 1.0), -1.0, 1.0);
+        if (cachedSamples.find(x_vals[isol]) == cachedSamples.end())
+        {
+          cachedSamples[x_vals[isol]] = dist2D(x_vals[isol]);
+        }
+      }
+
+      std::vector<DirectionVector> foundEmit;
+      std::vector<DirectionVector> foundReceive;
+
+      // collect all cached cosines within current bounds
+      std::vector<double> validCosines;
+      for (auto const &[cosine, error] : cachedSamples)
+      {
+        if (cosine >= cosMin && cosine <= cosMax)
+        {
+          validCosines.push_back(cosine);
+        }
+      }
+
+      // sort them to ensure adjacent comparisons
+      std::sort(validCosines.begin(), validCosines.end());
+
+      // look for sign changes between neighboring consine values
+      for (size_t i = 0; i + 1 < validCosines.size(); ++i)
+      {
+        double x0 = validCosines[i];
+        double x1 = validCosines[i + 1];
+        double f0 = cachedSamples[x0];
+        double f1 = cachedSamples[x1];
+
+        if (f0 * f1 < 0.0 || std::abs(f0) < CLOSE_TOL || std::abs(f1) < CLOSE_TOL)
+        {
+          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, CLOSE_TOL);
+          auto const emit = DirectionVector(std::sqrt(1.0 - cosine * cosine), 0.0, cosine);
+
+          foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
+          foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
+        }
+      }
+
+      if (!foundEmit.empty())
+      {
+        TRACER_LOG_INFO("Found " + std::to_string(foundEmit.size()) + " solutions");
+        return std::make_tuple(foundEmit, foundReceive);
+      }
+
+      TRACER_LOG_DEBUG("After iteration " + str(iteration + 1) +
+                       ", no solutions found after shooting " + str(cachedSamples.size()) +
+                       " total rays");
+
+      // update the cosine interval to keep the top 3 solutions
+      if (iteration < maxIterations - 1)
+      {
+        // choose the three best errors and use that to update the limits of cosMin and cosMax
+        std::vector<std::pair<double, LengthType>> sortedSamples(cachedSamples.begin(), cachedSamples.end());
+
+        // sort by absolute error
+        std::sort(sortedSamples.begin(), sortedSamples.end(),
+                  [](auto const &a, auto const &b)
+                  {
+                    return std::abs(a.second) < std::abs(b.second);
+                  });
+
+        // take up to three best samples
+        size_t nBest = std::min<size_t>(3, sortedSamples.size());
+        double newCosMin = sortedSamples[0].first;
+        double newCosMax = sortedSamples[0].first;
+
+        for (size_t i = 1; i < nBest; ++i)
+        {
+          newCosMin = std::min(newCosMin, sortedSamples[i].first);
+          newCosMax = std::max(newCosMax, sortedSamples[i].first);
+        }
+
+        cosMin = std::max(-1.0, newCosMin);
+        cosMax = std::min(1.0, newCosMax);
+        TRACER_LOG_DEBUG("New cosine limits are " + str(cosMin) + " and " + str(cosMax));
+        TRACER_LOG_DEBUG("Closest point at " + str(sortedSamples[0].second));
+      }
+
+      if (!iteration)
+      {
+        nRays += 2;
+      }
+      iteration++;
+    }
+
+    TRACER_LOG_INFO("Solution finding failed after shooting " + str(cachedSamples.size()) +
+                    " total rays. Current dcos = " + str((cosMax - cosMin) / float(nRays)));
+    return std::make_tuple(std::vector<DirectionVector>{}, std::vector<DirectionVector>{});
+  }
+
   inline bool RayTracer2D::FindEmitAndReceive(
       Point const &sourceXX, Point const &targetXX, EnvironmentBase const &env,
       DirectionVector const &seed, DirectionVector &emit, DirectionVector &receive)
@@ -152,13 +355,13 @@ namespace c8_tracer
     if (_GetZ(end) > _GetZ(start))
     {
       TRACER_LOG_TRACE("Flipping start/end positions. original start " +
-                          str(sourceXX) + ", original end " + str(targetXX));
+                       str(sourceXX) + ", original end " + str(targetXX));
       std::swap(start, end);
       flippedStartEnd = true;
 
       ShootOneRayToMinimumZ(start, v1, testPos, testDir, end, env);
       TRACER_LOG_TRACE("Flipping start/end positions. original " + str(testDir.normalized()) +
-                          ", flipped " + str(testDir.normalized() * -1));
+                       ", flipped " + str(testDir.normalized() * -1));
       v1 = v2 = testDir.normalized() * -1;
     }
 
@@ -230,8 +433,8 @@ namespace c8_tracer
         numericalDerivativeSteps_ += istep;
 
         TRACER_LOG_DEBUG("FOUND SOLUTION based on dcos machine tolerance:  v0 " + str(emit) +
-                            ", pos " + str(testPos) + ", abs 3D dist " +
-                            str((testPos - end).getNorm()));
+                         ", pos " + str(testPos) + ", abs 3D dist " +
+                         str((testPos - end).getNorm()));
         return true;
       }
 
@@ -269,8 +472,8 @@ namespace c8_tracer
         receive = receive.normalized();
 
         TRACER_LOG_DEBUG("FOUND SOLUTION within tol, v0 " + str(emit) +
-                            ", pos " + str(testPos) + ", abs 3D dist " +
-                            str((testPos - end).getNorm()));
+                         ", pos " + str(testPos) + ", abs 3D dist " +
+                         str((testPos - end).getNorm()));
         numericalDerivativeSteps_ += istep;
         return true;
       }
@@ -288,19 +491,19 @@ namespace c8_tracer
         closeNegErr = dr1;
         closeNegCos = _GetZ(v1);
         TRACER_LOG_TRACE("Step " + str(istep) +
-                            " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
+                         " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
       }
       else if (0.0 < dr1 && (dr1 < closePosErr || 0.0 == closePosErr))
       {
         closePosErr = dr1;
         closePosCos = _GetZ(v1);
         TRACER_LOG_TRACE("Step " + str(istep) + " --> Updating pos binary limit " +
-                            str(closeNegCos) + " " + str(closePosErr));
+                         str(closeNegCos) + " " + str(closePosErr));
       }
 
       TRACER_LOG_TRACE("Step " + str(istep) + " --> Binary search values closeNegCos: " +
-                          str(closeNegCos) + " closeNegErr: " + str(closeNegErr) +
-                          " closePosCos: " + str(closePosCos) + "  closePosErr: " + str(closePosErr));
+                       str(closeNegCos) + " closeNegErr: " + str(closeNegErr) +
+                       " closePosCos: " + str(closePosCos) + "  closePosErr: " + str(closePosErr));
 
       // If spanning the solution, linear interp using current solutions
       if (dr1 * dr2 < 0.0 * 0.0)
@@ -335,7 +538,7 @@ namespace c8_tracer
         cosine = clampCosine(cosine - dcos);
 
         TRACER_LOG_TRACE("Step " + str(istep) + " --> phi " + str(phi) + ", cosine " +
-                            str(cosine) + ", new-cosine " + str(cosine + dcos) + ", derivative " + str(derivative));
+                         str(cosine) + ", new-cosine " + str(cosine + dcos) + ", derivative " + str(derivative));
       }
 
       // decrease the step size if the numerical derivative is no longer a small step
@@ -343,15 +546,15 @@ namespace c8_tracer
       {
         dcos *= 0.05;
         TRACER_LOG_TRACE("Close to the target dr1 " + str(abs(dr1)) + " diff " +
-                            str(abs(dr1 - dr2)) + " dcos " + str(dcos));
+                         str(abs(dr1 - dr2)) + " dcos " + str(dcos));
       }
 
       TRACER_LOG_DEBUG("Step " + str(istep) + " --> v1 " + str(v1) + ", v2 " + str(v2) +
-                          ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
+                       ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
     }
 
     TRACER_LOG_TRACE("Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
-                        ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
+                     ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
 
     numericalDerivativeSteps_ += nSteps;
     emit = flippedStartEnd ? testDir * -1 : v1;
@@ -360,8 +563,8 @@ namespace c8_tracer
     receive = receive.normalized();
 
     TRACER_LOG_DEBUG("No solution found, last check was v0 " + str(emit) +
-                        ", pos " + str(testPos) + ", abs 3D dist " +
-                        str((testPos - end).getNorm()));
+                     ", pos " + str(testPos) + ", abs 3D dist " +
+                     str((testPos - end).getNorm()));
 
     return false;
   }
@@ -516,7 +719,7 @@ namespace c8_tracer
   {
 
     TRACER_LOG_TRACE("Performing reflection starting at x0: " + str(x0) + " v0: " +
-                        str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
+                     str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
     FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
 
     TRACER_LOG_TRACE("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
@@ -720,11 +923,11 @@ namespace c8_tracer
           stepSize = prevStep;
 
           TRACER_LOG_TRACE("Entered reflection loop between " +
-                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
+                           str(x0) + " and " + str(end) + ", step size " + str(stepSize));
           if ((x0 - plane.getCenter()).dot(plane.getNormal()) < 0.0)
           {
             TRACER_LOG_ERROR("First point should not be on this side of plane " +
-                                str(x0) + "  " + str((x0 - plane.getCenter()).dot(plane.getNormal())));
+                             str(x0) + "  " + str((x0 - plane.getCenter()).dot(plane.getNormal())));
             throw std::invalid_argument("Wrong!");
           }
           ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
@@ -749,7 +952,7 @@ namespace c8_tracer
     if (maxSteps > istep)
     {
       TRACER_LOG_TRACE("point found below the plane x0: " + str(x0) +
-                          ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
       FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
     }
     // RAY_TRACER_PRINT("Corrected, xf {}, vf {}, dist {}", end, endDir,

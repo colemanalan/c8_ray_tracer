@@ -32,6 +32,7 @@ def CreateNRMCRayTracer(
     min_step: float = 0.0001,
     max_step: float = 1.0,
     tolerance: float = 1e-8,
+    nRays: float = 13,
 ) -> RayTracer2D:
     """
     Creates a ray tracer that is initialized for use with NRMC simulations
@@ -40,11 +41,13 @@ def CreateNRMCRayTracer(
     :param min_step: smallest step size that will be taken during propagation (meters)
     :param max_step: largest step size that will be taken during propagation (meters)
     :param tolerance: relative error tolerance that defines the adaptive step size
+    :param nRays: defines how many rays are cast in the initial scan each time a solution
+    is searched for (more will run slowed but will fail less often)
 
     :return: initialized instance of a C8 raytracer
     """
     axis_of_symmetry = Vec3(0, 0, 1)  # z_hat
-    ray_tracer = RayTracer2D(axis_of_symmetry, min_step, max_step, tolerance)
+    ray_tracer = RayTracer2D(axis_of_symmetry, min_step, max_step, tolerance, nRays)
 
     if nrmc_model.z_air_boundary is not None:
         from c8_tracer.c8_tracer_ext import Plane
@@ -63,6 +66,7 @@ def CreateNRMCWrappedRayTracer(
     min_step: float = 0.0001,
     max_step: float = 1.0,
     tolerance: float = 1e-8,
+    nRays: float = 13,
 ):
     """
     Creates a ray tracer and wraps it in a function that takes start and end positions
@@ -72,6 +76,8 @@ def CreateNRMCWrappedRayTracer(
     :param min_step: smallest step size that will be taken during propagation (meters)
     :param max_step: largest step size that will be taken during propagation (meters)
     :param tolerance: relative error tolerance that defines the adaptive step size
+    :param nRays: defines how many rays are cast in the initial scan each time a solution
+    is searched for (more will run slowed but will fail less often)
 
     :return: function that wraps an initialized ray tracer. The function takes two
     np.ndarrays as pos1 and pos2 and returns the direct and refracted solutions
@@ -79,14 +85,14 @@ def CreateNRMCWrappedRayTracer(
 
     env = WrappedEnvironment(nrmc_model)
 
-    ray_tracer = CreateNRMCRayTracer(nrmc_model, min_step, max_step, tolerance)
+    ray_tracer = CreateNRMCRayTracer(nrmc_model, min_step, max_step, tolerance, nRays)
 
     def trace_to_point(
         pos1: np.ndarray, pos2: np.ndarray
     ) -> tuple[SignalPath, SignalPath]:
         start = Vec3(pos1[0], pos1[1], pos1[2])
         end = Vec3(pos2[0], pos2[1], pos2[2])
-        paths: list[SignalPath] = ray_tracer.PropagateToPoint(start, end, env)
+        paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
 
         dir_sol, ref_sol = paths
 
@@ -105,6 +111,7 @@ def CreateNRMCInterpolationTable(
     min_step: float = 0.0001,
     max_step: float = 1.0,
     tolerance: float = 1e-8,
+    nRays: float = 13,
 ):
     """
     Creates a ray tracer and wraps it in a function that takes start and end positions
@@ -122,9 +129,12 @@ def CreateNRMCInterpolationTable(
     :param min_step: smallest step size that will be taken during propagation (meters)
     :param max_step: largest step size that will be taken during propagation (meters)
     :param tolerance: relative error tolerance that defines the adaptive step size
+    :param nRays: defines how many rays are cast in the initial scan each time a solution
+    is searched for (more will run slowed but will fail less often)
 
-    :return: function that can be queried, `get_path_to_antenna(start_pos, ant_pos)`
+    :return get_path_to_antenna: function that can be queried, `get_path_to_antenna(start_pos, ant_pos)`
     and will return two signals paths. Signals paths that are `None` denote no solution
+    :return ray_tracer: initialized ray tracer
     """
 
     import numpy as np
@@ -132,7 +142,7 @@ def CreateNRMCInterpolationTable(
 
     env = WrappedEnvironment(nrmc_model)
 
-    ray_tracer = CreateNRMCRayTracer(nrmc_model, min_step, max_step, tolerance)
+    ray_tracer = CreateNRMCRayTracer(nrmc_model, min_step, max_step, tolerance, nRays)
     table_generator = InterpolationTableGenerator2D(ray_tracer, env)
 
     all_tables = {}
@@ -192,7 +202,7 @@ def CreateNRMCInterpolationTable(
 
         return signal_paths
 
-    return get_path_to_antenna
+    return get_path_to_antenna, ray_tracer
 
 
 def ConvertSignalPath(signal_path: SignalPath):
