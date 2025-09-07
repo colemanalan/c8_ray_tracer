@@ -409,12 +409,6 @@ namespace c8_tracer
     v2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
     dr2 = fireRay(v2);
     auto derivative = dcos / (dr1 - dr2);
-    // TRACER_LOG_TRACE("D2 --> start " + str(start) + ", end " + str(end) + ", testPos " + str(testPos));
-
-    // TRACER_LOG_TRACE("Start of propagate v1 {}, v2 {}, dr1 {}, dr2 {}", v1, v2, dr1,
-    //               dr2);
-    // TRACER_LOG_TRACE("Start of propagate derivative {}", derivative);
-    // TRACER_LOG_TRACE("Start cosine value will be {}", cosine + derivative * dr1);
 
     // variables for binary search
     auto closeNegCos = cosine;
@@ -578,6 +572,8 @@ namespace c8_tracer
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
+    auto const currentSteps = stepsTaken_;
+
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
     constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
@@ -603,7 +599,6 @@ namespace c8_tracer
       initStepSize *= 2.0;
       TakeAdaptiveStep(x0, v0, end, endDir, initStepSize, env, false);
       f1 = DistToPlane(plane, end);
-      ;
     }
 
     LengthType const brentStep = initStepSize;
@@ -619,6 +614,8 @@ namespace c8_tracer
     auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
     testStep = brentStep * frac;
     TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false); // take found step
+
+    planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
 
   inline std::tuple<double, double> RayTracer2D::TransmitThroughPlane(
@@ -816,11 +813,10 @@ namespace c8_tracer
 
   inline void RayTracer2D::PrintProfiling()
   {
-    TRACER_LOG_INFO("  Steps to find correct ray path " + std::to_string(numericalDerivativeSteps_));
-    TRACER_LOG_INFO("           Total rays propagated " + std::to_string(raysPropagated_));
     TRACER_LOG_INFO("               Total steps taken " + std::to_string(stepsTaken_));
-    TRACER_LOG_INFO("Steps finding reflection surface " + std::to_string(binarySearchReflection_));
-    TRACER_LOG_INFO("    Steps finding stopping point " + std::to_string(binarySearchBoundary_));
+    TRACER_LOG_INFO("  Steps to find correct ray path " + std::to_string(numericalDerivativeSteps_));
+    TRACER_LOG_INFO("Steps finding reflection surface " + std::to_string(planeIntersectionSteps_));
+    TRACER_LOG_INFO("           Total rays propagated " + std::to_string(raysPropagated_));
   }
 
   inline void RayTracer2D::ResetProfiling()
@@ -828,8 +824,7 @@ namespace c8_tracer
     numericalDerivativeSteps_ = 0;
     raysPropagated_ = 0;
     stepsTaken_ = 0;
-    binarySearchReflection_ = 0;
-    binarySearchBoundary_ = 0;
+    planeIntersectionSteps_ = 0;
   }
 
   inline SignalPath RayTracer2D::ShootOneRay(Point const &start, DirectionVector const &startDir,

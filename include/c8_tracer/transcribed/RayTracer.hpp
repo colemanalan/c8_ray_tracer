@@ -15,7 +15,7 @@ namespace c8_tracer
   {
   public:
     /*
-    Solves the ray solutions between sets of points in space.
+    Finds the ray solutions between sets of points in space.
     This is implemented to solve problems where the gradient of the index of refraction
     only changes along one dimension.
 
@@ -29,6 +29,8 @@ namespace c8_tracer
       tolerance:
         relative uncertainty on the numerical integration for each step. The step size
     will be adjusted to keep it within this tolerance
+      brentRays:
+        how many initial rays to cast when creating a Brent-Method-based search
 
     */
     RayTracer2D(DirectionVector const axis, LengthType const minStep,
@@ -303,19 +305,20 @@ namespace c8_tracer
     int nRays_;
 
     // profiling parameters
-    unsigned long int raysPropagated_ = 0;
-    unsigned long int stepsTaken_ = 0;
-    unsigned long int binarySearchReflection_ = 0;
-    unsigned long int binarySearchBoundary_ = 0;
     unsigned long int numericalDerivativeSteps_ = 0;
+    unsigned long int stepsTaken_ = 0;
+    unsigned long int planeIntersectionSteps_ = 0;
+    unsigned long int raysPropagated_ = 0;
 
     LengthType DistToPlane(Plane const &p, Point const &x) { return (x - p.getCenter()).dot(p.getNormal()); }
 
+    // Main function for propagating rays forward and handling effects during propagation
     SignalPath ShootOneRay(Point const &start, DirectionVector const &startDir,
                            Point const &target, EnvironmentBase const &env,
                            std::function<LengthType(Point const &)> stopMethod,
                            bool const accumulate, uint const maxSteps);
 
+    // Wrapper for the Adaptive step of the ray tracer
     void TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                       Vec3 &endDir, double &h0, EnvironmentBase const &env,
                       bool updateStep = true);
