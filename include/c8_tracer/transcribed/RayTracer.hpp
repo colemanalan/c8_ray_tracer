@@ -133,7 +133,7 @@ namespace c8_tracer
     Returns:
       the number of steps in the propagation from `start` to `end`
     */
-    uint ShootOneRayToMaximumR(Point const &start, DirectionVector const &startDir,
+    bool ShootOneRayToMaximumR(Point const &start, DirectionVector const &startDir,
                                Point &end, DirectionVector &endDir, Point const &target,
                                EnvironmentBase const &env);
 
@@ -158,7 +158,7 @@ namespace c8_tracer
     Returns:
       the number of steps in the propagation from `start` to `end`
     */
-    uint ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
+    bool ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
                                Point &end, DirectionVector &endDir, Point const &target,
                                EnvironmentBase const &env);
 

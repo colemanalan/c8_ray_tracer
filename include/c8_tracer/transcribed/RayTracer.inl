@@ -5,11 +5,11 @@
 #include "c8_tracer/transcribed/brent.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
 
-#define CLOSE_TOL 0.00001
-#define DCOS_TOL 1e-9
-#define INITAL_STEP_SIZE 0.1
-#define PLANE_CLOSE_TOL 0.000005
-#define MAX_RAY_STEPS 10000
+#define STOP_CLOSE_LENGTH 0.00001 // max distance for stopping criteria in Brent Loops
+#define PLANE_CLOSE_TOL 0.000005  // max distance for finding intersections with planes
+#define DCOS_TOL 1e-7             // limit in cosine distance before quitting opt loops
+#define MAX_RAY_STEPS 10000       // max steps taken before quitting
+#define INITAL_STEP_SIZE 0.1      // fist step will always been this large
 
 namespace c8_tracer
 {
@@ -211,12 +211,12 @@ namespace c8_tracer
     auto dist2D = [&](double cosine)
     {
       auto const startDir = makeDirVec(cosine);
-      ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
+      auto const success = ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
 
-      // handle when the ray never comes back down.
-      if (_GetZ(testPos) > _GetZ(startDir))
+      // handle rays that never hit minimum z
+      if (!success)
       {
-        return Get2DRadialDistance(start, target, start);
+        return Get2DRadialDistance(start, target, start) - 1.0;
       }
 
       auto const dist = Get2DRadialDistance(start, target, testPos);
@@ -273,9 +273,9 @@ namespace c8_tracer
         double f0 = cachedSamples[x0];
         double f1 = cachedSamples[x1];
 
-        if (f0 * f1 < 0.0 || std::abs(f0) < CLOSE_TOL || std::abs(f1) < CLOSE_TOL)
+        if (f0 * f1 < 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
         {
-          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, CLOSE_TOL);
+          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
           auto const emit = DirectionVector(std::sqrt(1.0 - cosine * cosine), 0.0, cosine);
 
           foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
@@ -375,10 +375,14 @@ namespace c8_tracer
       dcos *= 0.01;
     }
 
-    uint nSteps = 0;
     auto fireRay = [&](DirectionVector const &dir)
     {
-      nSteps += ShootOneRayToMinimumZ(start, dir, testPos, testDir, end, env);
+      auto const success = ShootOneRayToMinimumZ(start, dir, testPos, testDir, end, env);
+      if (!success)
+      {
+        return Get2DRadialDistance(start, end, start) - 1.0;
+      }
+
       return Get2DRadialDistance(start, end, testPos);
     };
 
@@ -465,7 +469,7 @@ namespace c8_tracer
       dr1 = fireRay(v1);
 
       // stop if close enough to boundary
-      if (abs(dr1) < CLOSE_TOL)
+      if (abs(dr1) < STOP_CLOSE_LENGTH)
       {
         emit = flippedStartEnd ? testDir * -1 : v1;
         receive = flippedStartEnd ? v1 * -1 : testDir;
@@ -557,7 +561,6 @@ namespace c8_tracer
     TRACER_LOG_TRACE("Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
                      ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
 
-    numericalDerivativeSteps_ += nSteps;
     emit = flippedStartEnd ? testDir * -1 : v1;
     receive = flippedStartEnd ? v1 * -1 : testDir;
     emit = emit.normalized();
@@ -613,7 +616,7 @@ namespace c8_tracer
       return DistToPlane(plane, end);
     };
 
-    auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, PLANE_CLOSE_TOL);
+    auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
     testStep = brentStep * frac;
     TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false); // take found step
   }
@@ -740,106 +743,7 @@ namespace c8_tracer
     return {reflectSComp, reflectPComp};
   }
 
-  void RayTracer2D::FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
-                               DirectionVector &endDir, LengthTypeSq const rMaxSq,
-                               LengthType const step, EnvironmentBase const &env)
-  {
-    auto fracHigh = 2.0; // Extend a bit beyond for numerical precision safety
-    auto fracMid = 1.0;
-    auto fracLow = 0.0;
-
-    LengthType testStep; // Need this to pass by reference
-
-    testStep = fracLow * step;
-    TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-    auto distLow = rMaxSq - Get2DProjection(x0, end).getSquaredNorm();
-
-    testStep = fracHigh * step;
-    TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-    auto distHigh = rMaxSq - Get2DProjection(x0, end).getSquaredNorm();
-
-    // Begin binary search
-    while (true)
-    {
-      binarySearchBoundary_++;
-
-      // only ever need to calculate the mid point
-      testStep = fracMid * step;
-      TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-      auto distMid = rMaxSq - Get2DProjection(x0, end).getSquaredNorm();
-
-      // CORSIKA_LOG_TRACE("Low: {}, Med: {}, High: {}", distLow, distMid, distHigh);
-
-      if (distHigh * distMid < 0.0 * 0.0 * 0.0 * 0.0)
-      { // between mid and high
-        // CORSIKA_LOG_TRACE("Point is btw mid/high {}", distHigh * distMid);
-
-        // check stopping criteria
-        if (abs(distHigh) < 0.001f * 0.001f)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at high point! {}", distHigh);
-          testStep = fracHigh * step;
-          TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-        else if (abs(distMid) < 0.001f * 0.001f)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at mid point! {}", distMid);
-          testStep = fracMid * step;
-          TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-
-        // update mid and low points using linear interpolation
-        auto const temp = fracMid;
-        fracMid = (distMid * fracHigh - distHigh * fracMid) / (distMid - distHigh);
-        fracMid = 0.5 * (fracHigh + fracMid);
-        fracLow = temp;
-        distLow = distMid;
-        // CORSIKA_LOG_TRACE("New limits will be low {} mid {} high {}", fracLow, fracMid,
-        // fracHigh);
-      }
-      else if (distLow * distMid < 0.0 * 0.0 * 0.0 * 0.0)
-      { // between low and mid
-        // CORSIKA_LOG_TRACE("Point is btw low/mid {}", distLow * distMid);
-
-        // check stopping criteria
-        if (abs(distLow) < 0.0001 * 0.0001)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at low point! {}", distLow);
-          testStep = fracLow * step;
-          TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-        else if (abs(distMid) < 0.0001 * 0.0001)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at mid point! {}", distMid);
-          testStep = fracMid * step;
-          TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-
-        // update high and mid points using linear interpolation
-        auto const temp = fracMid;
-        fracMid = (distLow * fracMid - distMid * fracLow) / (distLow - distMid);
-        fracHigh = temp;
-        distHigh = distMid;
-        // CORSIKA_LOG_TRACE("New limits will be low {} mid {} high {}", fracLow, fracMid,
-        // fracHigh);
-      }
-      else
-      {
-        // shouldn't ever happen, but here for safety
-        // CORSIKA_LOG_DEBUG("Point is no longer bounded in binary search!");
-        // CORSIKA_LOG_DEBUG("Low h={} d={}, Mid h={} d={}, High h={} d={},", fracLow * step,
-        // distLow, fracMid * step, distMid, fracHigh * step, distHigh);
-        assert(false);
-        break;
-      }
-    } // End while loop
-  }
-
-  inline uint RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
+  inline bool RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
                                                  Point const &target,
@@ -858,10 +762,10 @@ namespace c8_tracer
     end = sigPath.getEnd();
     endDir = sigPath.receive_;
 
-    return 1;
+    return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
   }
 
-  inline uint RayTracer2D::ShootOneRayToMaximumR(Point const &start,
+  inline bool RayTracer2D::ShootOneRayToMaximumR(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
                                                  Point const &target,
@@ -877,7 +781,8 @@ namespace c8_tracer
     end = sigPath.getEnd();
     endDir = sigPath.receive_;
 
-    return 1;
+    return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
+    ;
   }
 
   inline SignalPath RayTracer2D::GetSignalPath(Point const &start,
@@ -1030,7 +935,7 @@ namespace c8_tracer
         return distMethod(end);
       };
 
-      auto const frac = BrentMethod(root, 0.0, 1.0, distMethod(x0), distMethod(end), CLOSE_TOL);
+      auto const frac = BrentMethod(root, 0.0, 1.0, distMethod(x0), distMethod(end), STOP_CLOSE_LENGTH);
       currentStepSize = stepSize * frac;
       TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, false); // take found step
     }
