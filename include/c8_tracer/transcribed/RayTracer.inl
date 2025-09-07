@@ -944,7 +944,7 @@ namespace c8_tracer
   inline uint RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
-                                                 Point const &minZ,
+                                                 Point const &target,
                                                  EnvironmentBase const &env)
   {
 
@@ -955,17 +955,17 @@ namespace c8_tracer
     DirectionVector v0 = endDir = startDir;
 
     auto const minimumPlane =
-        Plane(minZ, DirectionVector({0, 0, 1}));
+        Plane(target, DirectionVector({0, 0, 1}));
 
     LengthType stepSize = INITAL_STEP_SIZE;
     LengthType prevStep = stepSize;
 
-    TRACER_LOG_TRACE("x0 " + str(start) + ", v0 " + str(startDir) + ", minZ " + str(minZ));
+    TRACER_LOG_TRACE("x0 " + str(start) + ", v0 " + str(startDir) + ", target " + str(target));
 
     uint constexpr maxSteps = 10000;
     uint istep = 0;
 
-    do
+    while (DistToPlane(minimumPlane, end) > 0.0) // Stop when you passed the antennas
     {
       x0 = end;
       v0 = endDir;
@@ -980,7 +980,7 @@ namespace c8_tracer
         auto const signFinal = DistToPlane(plane, end);
         if (signFinal * DistToPlane(plane, x0) < 0.0) // step crosses the plane
         {
-          if (signFinal * DistToPlane(plane, minZ) < 0.0)
+          if (signFinal * DistToPlane(plane, target) < 0.0)
           {
             stepSize = prevStep;
             TRACER_LOG_TRACE("Entered reflection loop between " +
@@ -1001,13 +1001,7 @@ namespace c8_tracer
         TRACER_LOG_DEBUG("max steps have been used, stopping");
         break;
       }
-    } while (DistToPlane(minimumPlane, end) > 0.0); // Stop when you passed the antennas
-
-    // RAY_TRACER_PRINT("Stopped after {} steps, step size {}", istep, stepSize);
-    // RAY_TRACER_PRINT("Prev, x0 {}, v0 {}", x0, v0);
-    // RAY_TRACER_PRINT("Shot, xf {}, vf {}", end, endDir);
-    // RAY_TRACER_PRINT("Will find crossing point minZ at {}, distance {}", minZ,
-    //                  (end - minimumPlane.getCenter()).dot(minimumPlane.getNormal()));
+    }
 
     // Find the crossing point
     if (maxSteps > istep)
@@ -1016,8 +1010,6 @@ namespace c8_tracer
                        ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
       FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
     }
-    // RAY_TRACER_PRINT("Corrected, xf {}, vf {}, dist {}", end, endDir,
-    //                  (end - minimumPlane.getCenter()).dot(minimumPlane.getNormal()));
 
     endDir = endDir.normalized();
     return istep;
@@ -1042,7 +1034,7 @@ namespace c8_tracer
 
     uint const maxSteps = 10000;
     uint istep = 0;
-    do
+    while (Get2DProjection(start, end).getSquaredNorm() < rMaxSq) // Stop when you passed the antennas
     {
       x0 = end;
       v0 = endDir;
@@ -1061,24 +1053,12 @@ namespace c8_tracer
         }
       }
 
-      // std::cout << x0 << std::endl;
-
       if (istep == maxSteps)
       {
         // CORSIKA_LOG_DEBUG("{} steps have been used, stopping, dir {}", istep, startDir);
         break;
       }
-    } while (Get2DProjection(start, end).getSquaredNorm() <
-             rMaxSq); // Stop when you passed the antennas
-
-    // CORSIKA_LOG_TRACE("Stopped after {} steps, step size {}", istep, stepSize);
-    // CORSIKA_LOG_TRACE("Prev, x0 {}, v0 {}, r2 {}", x0, v0,
-    //                   Get2DProjection(start, x0).getSquaredNorm());
-    // CORSIKA_LOG_TRACE("Shot, xf {}, vf {}, r2 {}", end, endDir,
-    //                   Get2DProjection(start, end).getSquaredNorm());
-    // CORSIKA_LOG_TRACE("Will find the edge from {} with distance {} {} {}", x0, rMaxSq,
-    //                   Get2DProjection(start, x0).getSquaredNorm(),
-    //                   rMaxSq - Get2DProjection(start, x0).getSquaredNorm());
+    }
 
     // Take one last partial step to get close to the propagation limit
     if (maxSteps > istep)
@@ -1086,8 +1066,6 @@ namespace c8_tracer
       auto dr = sqrt(rMaxSq) - sqrt(Get2DProjection(start, x0).getSquaredNorm());
       FindRadius(x0, v0, end, endDir, dr * dr, stepSize, env);
     }
-    // CORSIKA_LOG_DEBUG("Corrected, xf {}, vf {}, r2 {}", end, endDir,
-    //                   Get2DProjection(start, end).getSquaredNorm());
 
     endDir = endDir.normalized();
 
@@ -1113,7 +1091,10 @@ namespace c8_tracer
     auto const normStartDir = startDir.normalized();
     DirectionVector endDir = normStartDir;
 
-    if (_GetZ(start) < targetZ)
+    auto const minimumPlane =
+        Plane(target, DirectionVector({0, 0, 1}));
+
+    if (DistToPlane(minimumPlane, end) < 0.0)
     {
       TRACER_LOG_WARNING("Asking to propagate with an initial position below the target");
     }
@@ -1142,7 +1123,7 @@ namespace c8_tracer
 
     TRACER_LOG_DEBUG("Going from " + str(_GetZ(end)) + " to " + str(targetZ));
 
-    while (_GetZ(end) > targetZ && istep < maxSteps)
+    while (DistToPlane(minimumPlane, end) > 0.0 && istep < maxSteps)
     {
       if (istep > 0)
       {
@@ -1158,19 +1139,31 @@ namespace c8_tracer
 
       for (auto const &plane : reflectionLayers_)
       {
-        if ((end - plane.getCenter()).dot(plane.getNormal()) < 0.0)
+        auto const signFinal = DistToPlane(plane, end);
+        if (signFinal * DistToPlane(plane, x0) < 0.0) // step crosses the plane
         {
-          auto [tempS, tempP] =
-              ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
-          fresnelS *= tempS;
-          fresnelP *= tempP;
+
+          if (signFinal * DistToPlane(plane, target) < 0.0)
+          {
+            auto [tempS, tempP] =
+                ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
+            fresnelS *= tempS;
+            fresnelP *= tempP;
+          }
+          else
+          {
+            auto [tempS, tempP] =
+                TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
+            fresnelS *= tempS;
+            fresnelP *= tempP;
+          }
         }
       }
     }
 
     TRACER_LOG_DEBUG("Finding final intersection with plane using x0:" + str(x0) + ", v0: " + str(v0));
     // Final intersection if not capped
-    if (istep < maxSteps)
+    if (maxSteps > istep)
     {
       auto const minimumPlane = Plane(target, DirectionVector({0, 0, 1}));
       FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
