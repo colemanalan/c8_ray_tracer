@@ -21,7 +21,14 @@ namespace c8_tracer
                                   LengthType const maxStep = 10.0,
                                   double const tolerance = 1e-8,
                                   int const brentRays = 13)
-      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays) {}
+      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays)
+  {
+    if (brentRays < 3)
+    {
+      TRACER_LOG_ERROR("Must use at least 3 Brent rays, gave" + str(brentRays));
+      throw std::runtime_error("Bad construction of RayTracer2D");
+    }
+  }
 
   inline void RayTracer2D::AddReflectionLayer(Plane const layer)
   {
