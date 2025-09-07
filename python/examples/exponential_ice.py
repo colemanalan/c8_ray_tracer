@@ -9,6 +9,7 @@ from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnviro
 from c8_tracer.c8_tracer_ext.path import SignalPath
 
 logging.logger.set_level(logging.LogLevel.INFO)
+logging.logger_tracer.set_level(logging.LogLevel.INFO)
 
 # set up the exponential profile
 # n(z) = n_deep - delta_n * exp((z - z0) / length_scale)
