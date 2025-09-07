@@ -820,10 +820,10 @@ namespace c8_tracer
 
   inline void RayTracer2D::PrintProfiling()
   {
-    TRACER_LOG_INFO("               Total steps taken " + std::to_string(stepsTaken_));
-    TRACER_LOG_INFO("  Steps to find correct ray path " + std::to_string(numericalDerivativeSteps_));
-    TRACER_LOG_INFO("Steps finding reflection surface " + std::to_string(planeIntersectionSteps_));
-    TRACER_LOG_INFO("           Total rays propagated " + std::to_string(raysPropagated_));
+    LOG_INFO("               Total steps taken: " + std::to_string(stepsTaken_));
+    LOG_INFO("  Steps to find correct ray path: " + std::to_string(numericalDerivativeSteps_));
+    LOG_INFO("Steps finding reflection surface: " + std::to_string(planeIntersectionSteps_));
+    LOG_INFO("           Total rays propagated: " + std::to_string(raysPropagated_));
   }
 
   inline void RayTracer2D::ResetProfiling()
