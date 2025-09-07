@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "c8_tracer/environment.hpp"
 #include "c8_tracer/plane.hpp"
 #include "c8_tracer/ray_tracer_base.hpp"
@@ -123,8 +125,8 @@ namespace c8_tracer
         this value will be updated with the final location
       endDir:
         this value will be update with direction at `end`
-      rMaxSq:
-        maximum lateral distance^2 that the ray will be tracked
+      target:
+        the point that defines the maximum radius
       env:
         description of the refractive index and gradient
 
@@ -132,8 +134,8 @@ namespace c8_tracer
       the number of steps in the propagation from `start` to `end`
     */
     uint ShootOneRayToMaximumR(Point const &start, DirectionVector const &startDir,
-                               Point &end, DirectionVector &endDir,
-                               LengthTypeSq const rMaxSq, EnvironmentBase const &env);
+                               Point &end, DirectionVector &endDir, Point const &target,
+                               EnvironmentBase const &env);
 
     /*
     Propagates a ray from `start` until reaching a minimum z value
@@ -148,7 +150,7 @@ namespace c8_tracer
         this value will be updated with the final location
       endDir:
         this value will be update with direction at `end`
-      minZ:
+      target:
         point at which the minimum z value will be considered
       env:
         description of the refractive index and gradient
@@ -157,7 +159,7 @@ namespace c8_tracer
       the number of steps in the propagation from `start` to `end`
     */
     uint ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
-                               Point &end, DirectionVector &endDir, Point const &minZ,
+                               Point &end, DirectionVector &endDir, Point const &target,
                                EnvironmentBase const &env);
 
     /*
@@ -308,6 +310,16 @@ namespace c8_tracer
     unsigned long int numericalDerivativeSteps_ = 0;
 
     LengthType DistToPlane(Plane const &p, Point const &x) { return (x - p.getCenter()).dot(p.getNormal()); }
+
+    SignalPath ShootOneRay(Point const &start, DirectionVector const &startDir,
+                           Point const &target, EnvironmentBase const &env,
+                           std::function<LengthType(Point const &)> stopMethod,
+                           bool const accumulate, uint const maxSteps);
+
+    void TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
+                      Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                      bool updateStep = true);
+
   };
 }
 

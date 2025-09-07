@@ -36,7 +36,7 @@ namespace c8_tracer
              " receive: " + std::to_string(receive_) +
              " " + Path::to_string() + "]";
     }
-    const_iterator begin() const { return Path::begin(); }
+    const_iterator begin() const { return Path::begin(); } // for pybindings
     const_iterator end() const { return Path::end(); }
   };
 
