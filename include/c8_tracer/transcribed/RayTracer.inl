@@ -58,20 +58,20 @@ namespace c8_tracer
 
     if (_GetZ(end) > _GetZ(start))
     {
-      TRACER_LOG_DEBUG("Start " + str(start) + " is above end " + str(end) + ", flipping");
+      TRACER_LOG_DEBUG("Start " + str(start) + " is below end " + str(end) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
 
     // 4 iterations of 11 rays will find solutions that are at least separated by 0.000855
     auto const [foundEmit, foundReceive] = FindEmitAndReceiveBrent(start, end, env, nRays_, 4);
-
-    TRACER_LOG_INFO("Creatings paths for " + str(foundEmit.size()) + " solutions");
+    TRACER_LOG_INFO("Creating paths for " + str(foundEmit.size()) + " solutions");
 
     if (foundEmit.size())
     {
       for (uint i = 0; i < foundEmit.size(); i++)
       {
+        TRACER_LOG_DEBUG("Gettting path for x0 " + str(start) + " v0 " + str(foundEmit[i]));
         auto const path = GetSignalPath(start, foundEmit[i], end, env);
         signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path) : path);
       }
@@ -283,7 +283,7 @@ namespace c8_tracer
         if (f0 * f1 < 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
         {
           auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
-          auto const emit = DirectionVector(std::sqrt(1.0 - cosine * cosine), 0.0, cosine);
+          auto const emit = makeDirVec(cosine);
 
           foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
           foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
@@ -802,6 +802,12 @@ namespace c8_tracer
       return DistToPlane(minimumPlane, x);
     };
 
+    if (distFunc(start) < 0.0)
+    {
+      TRACER_LOG_WARNING("Asking for path that starts at " + str(start) +
+                         " which is below target " + str(target));
+    }
+
     return ShootOneRay(start, startDir, target, env, distFunc, true, MAX_RAY_STEPS);
   }
 
@@ -917,6 +923,8 @@ namespace c8_tracer
             fresnelP *= tempP;
           }
         }
+
+        istep++;
       }
     }
 

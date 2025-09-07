@@ -44,7 +44,7 @@ namespace c8_tracer
   {
     Path flippedPath(inPath.getEnd());
 
-    for (int ibin = inPath.getNSegments() - 2; ibin >= 0; ibin--)
+    for (int ibin = inPath.getNSegments() - 1; ibin >= 0; ibin--)
     {
       flippedPath.addToEnd(inPath.getPoint(ibin));
     }
