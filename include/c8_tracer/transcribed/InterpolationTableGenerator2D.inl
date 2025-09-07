@@ -221,9 +221,9 @@ namespace c8_tracer
           {
 
             LOG_DEBUG("Bad path, Z " + std::to_string(tables[0].GetZ(iz)) + " R " +
-                     std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
-                     ", success " + std::string(foundSolution ? "True" : "False") +
-                     ", diff " + std::to_string((path.getEnd() - target).getNorm()));
+                      std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
+                      ", success " + std::string(foundSolution ? "True" : "False") +
+                      ", diff " + std::to_string((path.getEnd() - target).getNorm()));
             shadowZone = true; // All further radii on this row will be failures
             nMissing++;
           }
