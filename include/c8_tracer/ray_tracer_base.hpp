@@ -6,6 +6,13 @@
 
 namespace c8_tracer
 {
+
+  enum SolutionMethod
+  {
+    NGD = 0,
+    Brent = 1
+  };
+
   class RayTracerBase
   {
   protected:

@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from c8_tracer.c8_tracer_ext import Vec3
+from c8_tracer.c8_tracer_ext.tracer import SolutionMethod
 from c8_tracer.nrmc_interface import CreateNRMCInterpolationTable
 
 
@@ -45,6 +46,7 @@ class C8RayTracerIndividual(ray_tracing_base):
         max_step: float = 1.0,
         tolerance: float = 1e-8,
         nRays: float = 13,
+        method: SolutionMethod = SolutionMethod.Brent,
     ):
         if n_reflections is not None and n_reflections != 1:
             raise RuntimeError(
@@ -81,6 +83,7 @@ class C8RayTracerIndividual(ray_tracing_base):
             max_step,
             tolerance,
             nRays,
+            method,
         )
 
         self.set_config(config=config)

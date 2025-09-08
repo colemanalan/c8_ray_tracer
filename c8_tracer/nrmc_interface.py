@@ -3,7 +3,7 @@ import numpy as np
 from c8_tracer.c8_tracer_ext import Vec3
 from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
 from c8_tracer.c8_tracer_ext.path import SignalPath
-from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D, SolutionMethod
 
 
 class WrappedEnvironment(EnvironmentBase):
@@ -115,6 +115,7 @@ def CreateNRMCInterpolationTable(
     max_step: float = 1.0,
     tolerance: float = 1e-8,
     nRays: float = 13,
+    method: SolutionMethod = SolutionMethod.Brent,
 ):
     """
     Creates a ray tracer and wraps it in a function that takes start and end positions
@@ -176,6 +177,7 @@ def CreateNRMCInterpolationTable(
             float(z_up),
             int(z_bins),
             vec_pos,
+            method,
         )
 
         all_tables[_GetDictKey(pos)] = tables
