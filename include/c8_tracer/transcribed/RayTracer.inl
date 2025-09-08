@@ -7,7 +7,7 @@
 
 #define STOP_CLOSE_LENGTH 0.00001 // max distance for stopping criteria in Brent Loops
 #define PLANE_CLOSE_TOL 0.000005  // max distance for finding intersections with planes
-#define DCOS_TOL 1e-7             // limit in cosine distance before quitting opt loops
+#define DCOS_TOL 1e-6             // limit in cosine distance before quitting opt loops
 #define MAX_RAY_STEPS 10000       // max steps taken before quitting
 #define INITAL_STEP_SIZE 0.1      // fist step will always been this large
 
@@ -223,7 +223,9 @@ namespace c8_tracer
       // handle rays that never hit minimum z
       if (!success)
       {
-        return Get2DRadialDistance(start, target, start) - 1.0;
+        TRACER_LOG_DEBUG("Failed ray from x0 " + str(start) + " startDir " + str(startDir) + " end at " + str(testPos));
+        // throw std::runtime_error("BAD");
+        return std::numeric_limits<LengthType>::infinity();
       }
 
       auto const dist = Get2DRadialDistance(start, target, testPos);
@@ -256,6 +258,22 @@ namespace c8_tracer
         }
       }
 
+      // Remove entries with infinity
+      x_vals.erase(
+          std::remove_if(x_vals.begin(), x_vals.end(),
+                         [&](double x)
+                         {
+                           auto it = cachedSamples.find(x);
+                           if (it != cachedSamples.end() && std::isinf(it->second))
+                           {
+                             TRACER_LOG_DEBUG("Bad initial value found, removing cos " + str(it->first) + " from list");
+                             cachedSamples.erase(it); // Remove from map
+                             return true;             // Mark for removal from vector
+                           }
+                           return false;
+                         }),
+          x_vals.end());
+
       std::vector<DirectionVector> foundEmit;
       std::vector<DirectionVector> foundReceive;
 
@@ -280,8 +298,10 @@ namespace c8_tracer
         double f0 = cachedSamples[x0];
         double f1 = cachedSamples[x1];
 
-        if (f0 * f1 < 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
+        if (f0 * f1 <= 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
         {
+          TRACER_LOG_DEBUG("Using brent on cos0 " + str(x0) + " f0 " +
+                           str(f0) + " cos1 " + str(x1) + " f1 " + str(f1));
           auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
           auto const emit = makeDirVec(cosine);
 
@@ -962,6 +982,8 @@ namespace c8_tracer
 
     auto const n0 = env.get_n(start);
     auto const nf = env.get_n(end);
+
+    TRACER_LOG_TRACE("Solution found ending at " + str(end));
 
     return SignalPath(propTime, avgIndex, n0, nf, normStartDir, endDir.normalized(),
                       propLength, path, fresnelS, fresnelP);
