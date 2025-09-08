@@ -17,7 +17,11 @@ namespace c8_tracer
     LengthType fa = faInit, fb = fbInit;
     if (fa * fb > 0.0)
     {
-      throw std::invalid_argument("Root not bracketed");
+      TRACER_LOG_ERROR("Root not bracketed in initial call " +
+                       std::to_string(fa) + " " + std::to_string(fb) + 
+                       " " + std::to_string(fa * fb));
+      throw std::invalid_argument("Root not bracketed " +
+                                  std::to_string(fa) + " " + std::to_string(fb));
     }
 
     if (std::abs(fa) < std::abs(fb))
