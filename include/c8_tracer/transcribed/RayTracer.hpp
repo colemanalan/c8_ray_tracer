@@ -218,6 +218,36 @@ namespace c8_tracer
                                                EnvironmentBase const &env);
 
     /*
+    Finds the intersection with the plane using `FindIntersectionWithPlane` and gives
+    the final direction after transmission
+
+    Arguments:
+      x0:
+        starting location of the launch point (should be only 1 step away from the
+        boundary)
+      startDir:
+        initial direction of propagation at `x0`
+      end:
+        this value will be updated with the final location (will be on the reflection
+        plane)
+      endDir:
+        this value will be update with direction at `end` after reflecting it
+      plane:
+        plane that is doing the reflecting
+      step:
+        maximum step size in the binary search
+      env:
+        description of the refractive index and gradient
+
+    Returns:
+      tuple of (Fresnel-S, Fresnel-P)
+    */
+    std::tuple<double, double> TransmitThroughPlane(Point const &x0, DirectionVector const &v0,
+                                                    Point &end, DirectionVector &endDir,
+                                                    Plane const &plane, LengthType const step,
+                                                    EnvironmentBase const &env);
+
+    /*
     This helps find the point that is exactly a specified lateral distance (see
     `Get2DProjection`) away from `x0`. The function performs a binary search to find
     the step size required such that the propagation is at the correct distance. This
@@ -276,6 +306,8 @@ namespace c8_tracer
     unsigned long int binarySearchReflection_ = 0;
     unsigned long int binarySearchBoundary_ = 0;
     unsigned long int numericalDerivativeSteps_ = 0;
+
+    LengthType DistToPlane(Plane const &p, Point const &x) { return (x - p.getCenter()).dot(p.getNormal()); }
   };
 }
 
