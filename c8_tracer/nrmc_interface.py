@@ -183,7 +183,7 @@ def CreateNRMCInterpolationTable(
     # construct a function that can be queried in NRMC
     def get_path_to_antenna(
         start_pos: np.ndarray, antenna_pos: np.ndarray
-    ) -> list[None | SignalPath]:
+    ) -> list[SignalPath]:
         # check that a table has been made for this antenna
         if _GetDictKey(antenna_pos) not in all_tables.keys():
             raise RuntimeError(f"No dict has been made for antenna at {antenna_pos}")

@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import MagicMock
 from c8_tracer.c8_tracer_ext import Vec3
 from c8_tracer.c8_tracer_ext.integrators import CashKarpIntegrator
 from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
@@ -11,20 +10,20 @@ class TestCashKarpIntegrator(unittest.TestCase):
             def __init__(self):
                 super().__init__()
 
-            def get_n(self, position: Vec3) -> float:
+            def get_n(self, _: Vec3) -> float:
                 return 1.5
 
-            def get_grad_n(self, position: Vec3) -> Vec3:
+            def get_grad_n(self, _: Vec3) -> Vec3:
                 return Vec3(0.0, 0.0, 0.0)
 
         class TestEnvNonUniform(EnvironmentBase):
             def __init__(self):
                 super().__init__()
 
-            def get_n(self, position: Vec3) -> float:
+            def get_n(self, _: Vec3) -> float:
                 return 1.5
 
-            def get_grad_n(self, position: Vec3) -> Vec3:
+            def get_grad_n(self, _: Vec3) -> Vec3:
                 return Vec3(100.0, 100.0, 100.0)
 
         # Mock environment with constant refractive index and zero gradient
