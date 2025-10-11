@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 
 from c8_tracer import logging
 from c8_tracer import Plane
-from c8_tracer.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
 from c8_tracer import Vec3
-from c8_tracer.environment import EnvironmentBase
-from c8_tracer.path import SignalPath
+from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
+from c8_tracer.c8_tracer_ext.path import SignalPath
 
 # set logging level for the whole library
 logging.logger.set_level(logging.LogLevel.INFO)
@@ -83,4 +83,5 @@ ax = fig.add_subplot(1, 2, 2)
 ax.plot(n_indexes, heights)
 ax.set_xlabel("Refractive index")
 
+print("Saving CustomRefractiveProfilePath.png")
 fig.savefig("CustomRefractiveProfilePath.png")

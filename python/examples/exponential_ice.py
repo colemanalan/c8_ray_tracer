@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 
 from c8_tracer import logging
 from c8_tracer import Plane
-from c8_tracer.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
 from c8_tracer import Vec3
-from c8_tracer.environment import CartesianSingleExponentialEnvironment
-from c8_tracer.path import SignalPath
+from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
+from c8_tracer.c8_tracer_ext.path import SignalPath
 
 logging.logger.set_level(logging.LogLevel.INFO)
 
@@ -42,6 +42,7 @@ ray_tracer.AddReflectionLayer(plane)
 start = Vec3(0, 0, -50)
 end = Vec3(300, 0, -200.0)
 paths: list[SignalPath] = ray_tracer.PropagateToPoint(start, end, env)
+# paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
 
 for path in paths:
     dist = (path.getEnd() - end).norm()
@@ -69,4 +70,5 @@ ax = fig.add_subplot(1, 2, 2)
 ax.plot(n_indexes, heights)
 ax.set_xlabel("Refractive index")
 
+print("Saving ExponentialIcePath.png")
 fig.savefig("ExponentialIcePath.png")
