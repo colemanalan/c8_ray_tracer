@@ -89,14 +89,17 @@ def CreateNRMCWrappedRayTracer(
 
     def trace_to_point(
         pos1: np.ndarray, pos2: np.ndarray
-    ) -> tuple[SignalPath, SignalPath]:
+    ) -> list[SignalPath]:
+        
+        # Must be different altitudes for proper z-check
+        if pos1[2] == pos2[2]:
+            pos2[2] -= 1e-9
+
         start = Vec3(pos1[0], pos1[1], pos1[2])
         end = Vec3(pos2[0], pos2[1], pos2[2])
         paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
 
-        dir_sol, ref_sol = paths
-
-        return dir_sol, ref_sol
+        return paths
 
     return trace_to_point, ray_tracer
 
@@ -166,12 +169,12 @@ def CreateNRMCInterpolationTable(
 
         vec_pos = Vec3(pos[0], pos[1], pos[2])
         tables = table_generator.GenerateTables(
-            r_min,
-            maxR,
-            r_bins,
-            z_down,
-            z_up,
-            z_bins,
+            float(r_min),
+            float(maxR),
+            int(r_bins),
+            float(z_down),
+            float(z_up),
+            int(z_bins),
             vec_pos,
         )
 

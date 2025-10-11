@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
-from c8_tracer import Vec3
-from c8_tracer.integrators import CashKarpIntegrator
-from c8_tracer.environment import EnvironmentBase
+from c8_tracer.c8_tracer_ext import Vec3
+from c8_tracer.c8_tracer_ext.integrators import CashKarpIntegrator
+from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
 
 
 class TestCashKarpIntegrator(unittest.TestCase):
