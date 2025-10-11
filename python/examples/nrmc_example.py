@@ -4,6 +4,12 @@ from c8_tracer.nrmc_interface import ConvertSignalPath, CreateNRMCInterpolationT
 from c8_tracer.c8_tracer_ext import logging
 from c8_tracer.c8_tracer_ext.tracer import SolutionMethod
 
+"""
+This sketches out how this class could be used in the main NRMC loop for simulating
+events by first building an interpolation table
+"""
+
+
 # Can be quite loud without this
 logging.logger.set_level(logging.LogLevel.INFO)
 logging.logger_tracer.set_level(logging.LogLevel.ERROR)
@@ -43,7 +49,7 @@ get_path_to_antenna, tracer = CreateNRMCInterpolationTable(
     max_step=1.0,
     tolerance=1e-8,
     nRays=10,
-    method=SolutionMethod.NGD,
+    method=SolutionMethod.Brent,
 )
 
 # would be the main loop in the NRMC code

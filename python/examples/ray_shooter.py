@@ -5,6 +5,13 @@ from c8_tracer.c8_tracer_ext import Vec3, Plane
 from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
 from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
 
+"""
+Example script showing the how a custom environment can be set up and how the ray
+tracer can be constructed to launch rays into the ice from that air. By default, this
+uses the ShootToMinimumZ functions will just just propagate a ray until a minimum z
+has been reached regardless of how close to the target it is
+"""
+
 
 class AirAndIce(EnvironmentBase):
     def __init__(self):
@@ -23,16 +30,16 @@ class AirAndIce(EnvironmentBase):
         )
 
     def get_n(self, pos: Vec3) -> float:
-        if pos.z > 0.0:
+        if pos.z > 0.0:  # in air
             return 1.0001
 
-        return self.ice.get_n(pos)
+        return self.ice.get_n(pos)  # in ice
 
     def get_grad_n(self, pos: Vec3) -> Vec3:
-        if pos.z > 0.0:
+        if pos.z > 0.0:  # in air
             return Vec3(0, 0, 0)
 
-        return self.ice.get_grad_n(pos)
+        return self.ice.get_grad_n(pos)  # in ice
 
 
 env = AirAndIce()
@@ -61,3 +68,15 @@ logging.logger_tracer.set_level(logging.LogLevel.TRACE)
 
 ray_tracer.ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env)
 print("Final pos:", testPos)
+print(
+    "Lateral distance to target", ray_tracer.Get2DRadialDistance(start, target, testPos)
+)
+print()
+
+# try a better guess
+startDir = Vec3(0.2509, 0, -1).normalized()
+ray_tracer.ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env)
+print("Final pos:", testPos)
+print(
+    "Lateral distance to target", ray_tracer.Get2DRadialDistance(start, target, testPos)
+)

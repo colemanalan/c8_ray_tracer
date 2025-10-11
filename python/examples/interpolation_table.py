@@ -5,6 +5,11 @@ from c8_tracer.c8_tracer_ext.tables import InterpolationTableGenerator2D
 from c8_tracer import Vec3
 from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
 
+"""
+Demonstrates how to use the interpolation table builder and to use the results
+from the table to quickly get solutions
+"""
+
 logging.logger.set_level(logging.LogLevel.INFO)
 
 # set up the exponential profile

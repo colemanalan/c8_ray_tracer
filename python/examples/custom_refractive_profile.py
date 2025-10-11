@@ -8,6 +8,13 @@ from c8_tracer import Vec3
 from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
 from c8_tracer.c8_tracer_ext.path import SignalPath
 
+
+"""
+This demonstrates how to contruct a custom environment that is built completely out of
+python functions and the Vec3 class.
+A ray tracer is created and finds the solutions between two points.
+"""
+
 # set logging level for the whole library
 logging.logger.set_level(logging.LogLevel.INFO)
 
