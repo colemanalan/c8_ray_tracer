@@ -112,7 +112,7 @@ namespace c8_tracer
     // bump the direction slightly upward
     if (abs(_GetZ(seed1)) < 0.001)
     {
-      seed1 = (seed1 + DirectionVector({0, 0, 0.01})).normalized();
+      seed1 = (seed1 + axis_ * 0.01).normalized();
     }
 
     DirectionVector emit1 = seed1;    // initialize
@@ -224,7 +224,6 @@ namespace c8_tracer
       if (!success)
       {
         TRACER_LOG_DEBUG("Failed ray from x0 " + str(start) + " startDir " + str(startDir) + " end at " + str(testPos));
-        // throw std::runtime_error("BAD");
         return std::numeric_limits<LengthType>::infinity();
       }
 
@@ -773,15 +772,38 @@ namespace c8_tracer
                                                  Point const &target,
                                                  EnvironmentBase const &env)
   {
-    auto const minimumPlane =
-        Plane(target, DirectionVector({0, 0, 1}));
+    auto const minimumPlane = Plane(target, axis_);
 
     auto distFunc = [&](Point const &x)
     {
       return DistToPlane(minimumPlane, x);
     };
 
-    SignalPath const sigPath = ShootOneRay(start, startDir, target, env, distFunc, false, MAX_RAY_STEPS);
+    auto const startDist = distFunc(start);
+    auto useStart = start;
+    if (startDist < 0)
+    {
+      TRACER_LOG_WARNING("Starting shot from below the target Z! " + str(start) + " < " + str(target));
+      end = start;
+      endDir = startDir;
+      return false;
+    }
+    else if (startDist == 0)
+    {
+      if (_GetZ(startDir) < 0)
+      {
+        TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
+                         " and pointed downwards " + str(startDir) + " failing");
+        end = start;
+        endDir = startDir;
+        return true;
+      }
+      useStart = start + axis_ * PLANE_CLOSE_TOL / 2.0;
+      TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
+                       " adjusting start pos to: " + str(useStart));
+    }
+
+    SignalPath const sigPath = ShootOneRay(useStart, startDir, target, env, distFunc, false, MAX_RAY_STEPS);
 
     end = sigPath.getEnd();
     endDir = sigPath.receive_;
@@ -815,20 +837,35 @@ namespace c8_tracer
                                                EnvironmentBase const &env)
   {
     auto const minimumPlane =
-        Plane(target, DirectionVector({0, 0, 1}));
+        Plane(target, axis_);
 
     auto distFunc = [&](Point const &x)
     {
       return DistToPlane(minimumPlane, x);
     };
 
-    if (distFunc(start) < 0.0)
+    auto useStart = start;
+    auto distStart = distFunc(useStart);
+
+    if (distStart < 0.0)
     {
       TRACER_LOG_WARNING("Asking for path that starts at " + str(start) +
                          " which is below target " + str(target));
     }
+    else if (distStart == 0)
+    {
+      if (_GetZ(startDir) >= 0) // equal catches prop for uniform medium
+      {
+        useStart = start + axis_ * PLANE_CLOSE_TOL / 2.0;
+        TRACER_LOG_TRACE("Adjusting start pos to: " + str(useStart));
+      }
+      else
+      {
+        TRACER_LOG_TRACE("Starting exactly at the boundary and going downward");
+      }
+    }
 
-    return ShootOneRay(start, startDir, target, env, distFunc, true, MAX_RAY_STEPS);
+    return ShootOneRay(useStart, startDir, target, env, distFunc, true, MAX_RAY_STEPS);
   }
 
   inline Vec3 RayTracer2D::Get2DProjection(Point const &x0, Point const &xf)
@@ -898,7 +935,7 @@ namespace c8_tracer
 
     uint istep = 0;
 
-    while (distMethod(end) * distMethod(x0) >= 0 && istep < maxSteps)
+    while (distMethod(end) * distMethod(x0) > 0 && istep < maxSteps)
     {
 
       if (istep > 0)
@@ -953,7 +990,8 @@ namespace c8_tracer
     if (distMethod(end) * distMethod(x0) <= 0)
     {
       TRACER_LOG_TRACE("Stopping criteria bounded, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir) +
+                       ", steps: " + str(istep) + ", distEnd: " + str(distMethod(end)) + ", distx0: " + str(distMethod(x0)));
 
       LengthType currentStepSize;
 
@@ -966,12 +1004,17 @@ namespace c8_tracer
       };
 
       auto const frac = BrentMethod(root, 0.0, 1.0, distMethod(x0), distMethod(end), STOP_CLOSE_LENGTH);
+      TRACER_LOG_TRACE("After final path check, x0: " + str(x0) +
+                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
       currentStepSize = stepSize * frac;
+      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(currentStepSize));
       TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, false); // take found step
+      TRACER_LOG_TRACE("Final values, x0: " + str(x0) +
+                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
     }
     else
     {
-      TRACER_LOG_TRACE("Stopping criteria not found! Number of steps taken " + str(istep));
+      TRACER_LOG_TRACE("Stopping criteria reached! Number of steps taken " + str(istep));
     }
 
     path.addToEnd(end);
