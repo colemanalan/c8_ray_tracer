@@ -197,6 +197,7 @@ def CreateNRMCInterpolationTable(
         for table in tables:
             if not table.ContainsPoint(r_i):
                 signal_paths.append(None)  # None for no solution paths
+                continue
 
             signal_path: SignalPath = table.GetSignalPath(
                 r_i, env.get_n(r_i), env.get_n(r_f)
