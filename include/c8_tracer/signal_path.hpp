@@ -29,6 +29,10 @@ namespace c8_tracer
           receive_(receive), R_distance_(distance),
           fresnelS_(fresnelS), fresnelP_(fresnelP) {}
     ~SignalPath() = default;
+    
+    std::vector<Point> get_points() const {
+        return std::vector<Point>(begin(), end());
+    }
 
     inline std::string to_string() const
     {
