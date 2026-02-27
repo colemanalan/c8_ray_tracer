@@ -132,7 +132,7 @@ namespace c8_tracer
         lenPerStep_[i] = posPerStep_[i].norm();
         nPerStep_[i] = n_refract;
         stepLength += lenPerStep_[i] * parB_[i] * h;
-        avgN += nPerStep_[i] * parB_[i] * h;
+        avgN += nPerStep_[i] * lenPerStep_[i] * parB_[i] * h;
       }
 
       avgN /= stepLength;
