@@ -73,7 +73,7 @@ class TestCashKarpIntegrator(unittest.TestCase):
     def test_fixing_step_size(self):
         h_start = 1.0
         h = 1.0
-        (end_pos, end_dir, dir_error, step_len, avg_n) = self.integrator.AdaptiveStep(
+        self.integrator.AdaptiveStep(
             self.start_pos,
             self.start_dir,
             self.env_non,
