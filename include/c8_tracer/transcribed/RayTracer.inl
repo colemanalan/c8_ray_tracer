@@ -28,6 +28,11 @@ namespace c8_tracer
       TRACER_LOG_ERROR("Must use at least 3 Brent rays, gave" + str(brentRays));
       throw std::runtime_error("Bad construction of RayTracer2D");
     }
+    if (maxStep < minStep)
+    {
+      TRACER_LOG_ERROR("Step size must be ordered. Gave " + str(minStep) + " < " + str(maxStep));
+      throw std::runtime_error("Step size must be ordered");
+    }
   }
 
   inline void RayTracer2D::AddReflectionLayer(Plane const layer)
@@ -99,48 +104,47 @@ namespace c8_tracer
     Point start = sourceXX;
     Point end = targetXX;
 
+    // don't want to start directly horizontal (will not propagate)
+    // bump the start slightly upward
+    if (abs(_GetZ(start) - _GetZ(end)) < DCOS_TOL)
+    {
+      start = start + axis_ * DCOS_TOL;
+    }
+
     if (_GetZ(end) > _GetZ(start))
     {
-      TRACER_LOG_DEBUG("(PropagateToPoint) Start " + str(start) + " is above end " + str(end) + ", flipping");
+      TRACER_LOG_DEBUG("End " + str(end) + " is above start " + str(start) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
 
     // Seed with straight-line direction (for direct ray)
     DirectionVector seed1 = (end - start).normalized();
-    // don't want to start directly horizontal (will not propagate)
-    // bump the direction slightly upward
-    if (abs(_GetZ(seed1)) < 0.001)
-    {
-      seed1 = (seed1 + axis_ * 0.01).normalized();
-    }
-
     DirectionVector emit1 = seed1;    // initialize
     DirectionVector receive1 = seed1; // initialize
 
-    TRACER_LOG_INFO("(PropagateToPoint) Finding first solution with seed " + str(seed1));
+    TRACER_LOG_INFO("Finding first solution with seed " + str(seed1));
     bool const solution1Found =
         FindEmitAndReceive(start, end, env, seed1, emit1, receive1);
-    TRACER_LOG_INFO("(PropagateToPoint) Returned solution dir " + str(emit1));
+    TRACER_LOG_INFO("Returned solution dir " + str(emit1));
 
     // If this one failed, the next one is not worth calculating (shadow zone)
     if (!solution1Found)
     {
-      TRACER_LOG_WARNING("(PropagateToPoint) Direct solution finding failed, won't find second solution");
+      TRACER_LOG_WARNING("Direct solution finding failed, won't find second solution");
       return signalPaths;
     }
 
     auto const path1 = GetSignalPath(start, emit1, end, env);
     signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path1) : path1);
 
-    // Seed with weighted average of \hat{z} and the direct ray (for refracted)
-    auto const phi =
-        atan2(static_cast<double>(seed1.y), static_cast<double>(seed1.x));
+    auto const parallelComp = emit1 * _GetZ(emit1);
+    auto const perpDir = (emit1 - parallelComp).normalized();
 
     // in most cases, the other solution is close to the negative launch vector
-    double cosine = (abs(_GetZ(emit1)) + 0.99) * 0.25;
+    auto cosine = (parallelComp.norm() + 0.99) * 0.25;
     auto sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
-    auto seed2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
+    auto seed2 = axis_ * cosine + perpDir * sine;
 
     DirectionVector emit2 = seed2;
     DirectionVector receive2 = seed2;
@@ -161,7 +165,7 @@ namespace c8_tracer
       {
         cosine += dcos;
         sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
-        seed2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
+        seed2 = axis_ * cosine + perpDir * sine;
         solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
 
         if (abs(_GetZ(emit1) - _GetZ(emit2)) > 0.0001)
@@ -192,6 +196,13 @@ namespace c8_tracer
     Point start = startInit;
     Point target = targetInit;
     bool flippedStartEnd = false;
+
+    // don't want to start directly horizontal (will not propagate)
+    // bump the start slightly upward
+    if (abs(_GetZ(start) - _GetZ(target)) < DCOS_TOL)
+    {
+      start = start + axis_ * DCOS_TOL;
+    }
 
     if (_GetZ(target) > _GetZ(start))
     {
@@ -272,6 +283,12 @@ namespace c8_tracer
                            return false;
                          }),
           x_vals.end());
+
+      TRACER_LOG_INFO("Initial solutions");
+      for (const auto &x_val : x_vals)
+      {
+        TRACER_LOG_INFO("\tcos(th): " + str(x_val) + "   dR: " + str(cachedSamples[x_val]));
+      }
 
       std::vector<DirectionVector> foundEmit;
       std::vector<DirectionVector> foundReceive;
@@ -416,7 +433,18 @@ namespace c8_tracer
 
     // calculate metric for the seed
     dr1 = fireRay(v1);
-    // TRACER_LOG_TRACE("D1 --> start {}, end {}, testPos {}", start, end, testPos);
+    if (abs(dr1) < STOP_CLOSE_LENGTH) // in uniform medium will trip right away
+    {
+      emit = flippedStartEnd ? testDir * -1 : v1;
+      receive = flippedStartEnd ? v1 * -1 : testDir;
+      emit = emit.normalized();
+      receive = receive.normalized();
+
+      TRACER_LOG_DEBUG("FOUND SOLUTION within tol, v0 " + str(emit) +
+                       ", pos " + str(testPos) + ", abs 3D dist " +
+                       str((testPos - end).getNorm()));
+      return true;
+    }
 
     // set launch vector #2 as a slight perturbation to calculate derivatie
     auto cosine = _GetZ(v1) + dcos;
@@ -554,8 +582,8 @@ namespace c8_tracer
         if (dr1 == dr2)
         {
           TRACER_LOG_TRACE("Found the same points, derivative inf, returning seed value");
-          v1 = seed;
-          break;
+          dcos *= -1.0; // probably hitting a clamp condition
+          continue;
         }
 
         // numerical derivative
@@ -603,6 +631,8 @@ namespace c8_tracer
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
     constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
+    LengthType stepLength;
+    double avgN;
     LengthType initStepSize = step;
     auto const f0 = DistToPlane(plane, x0);
     auto f1 = DistToPlane(plane, end);
@@ -623,7 +653,7 @@ namespace c8_tracer
 
       initSteps++;
       initStepSize *= 2.0;
-      TakeAdaptiveStep(x0, v0, end, endDir, initStepSize, env, false);
+      TakeAdaptiveStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN, false);
       f1 = DistToPlane(plane, end);
     }
 
@@ -633,13 +663,13 @@ namespace c8_tracer
     auto root = [&](double mult)
     {
       testStep = brentStep * mult;
-      TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false);
+      TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, stepLength, avgN, false);
       return DistToPlane(plane, end);
     };
 
     auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
     testStep = brentStep * frac;
-    TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, false); // take found step
+    TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, stepLength, avgN, false); // take found step
 
     planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
@@ -666,8 +696,8 @@ namespace c8_tracer
     auto const sineSquareTheta1 = 1.0 - cosineTheta1 * cosineTheta1;
 
     // init variables
-    double transmitSComp = 1.0;
-    double transmitPComp = 1.0;
+    double transmitSComp = 0.0;
+    double transmitPComp = 0.0;
 
     // check total-intertal-reflection case
     auto const ratio = n1 / n2;
@@ -680,22 +710,26 @@ namespace c8_tracer
                       (n1 * cosineTheta1 + n2 * cosineTheta2);
       transmitPComp = 2 * n1 * cosineTheta1 /
                       (n2 * cosineTheta1 + n1 * cosineTheta2);
-    }
 
-    auto const vv = v0.normalized();
-    endDir = vv - plane.getNormal() * vv.dot(plane.getNormal()) +
-             plane.getNormal() * std::sqrt(n2 * n2 - n1 * n1 + pow(vv.dot(plane.getNormal()), 2.0));
-    endDir = endDir.normalized();
-    TRACER_LOG_ALL("After Snell's Law dir changed from " + str(vv) + " to " + str(endDir));
+      auto const v_perp = plane.getNormal() * v0.dot(plane.getNormal());
+      auto const v_parallel = v0 - v_perp;
+
+      endDir = v_perp.normalized() * cosineTheta2 + v_parallel.normalized() * sqrt(sineSquareTheta2);
+      TRACER_LOG_ALL("After Snell's Law dir changed from " + str(v0) + " to " + str(endDir));
+    }
+    else
+    {
+      auto const v_parallel = v0 - plane.getNormal() * v0.dot(plane.getNormal());
+      endDir = v_parallel.normalized();
+    }
 
     // Want to ensure that we are on the correct side of the plane after reflection
     // Ensure this is the case by forcing it to the other side
     auto const dist = DistToPlane(plane, end);
-    if (dist * DistToPlane(plane, x0) > 0.0)
+    if (dist * DistToPlane(plane, x0) >= 0.0)
     { // wrong side of plane
-      // CORSIKA_LOG_DEBUG("On the wrong side, current: {}, dir: {}", end, endDir);
       TRACER_LOG_ALL("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
-      end = end - endDir.normalized() * dist * 1.001 / endDir.normalized().dot(plane.getNormal());
+      end = end + endDir.normalized() * std::max(dist * 1.001, PLANE_CLOSE_TOL);
       TRACER_LOG_ALL("After correction " + str(end));
     }
 
@@ -755,11 +789,12 @@ namespace c8_tracer
 
     // Want to ensure that we are on the correct side of the plane after reflection
     // Ensure this is the case by forcing it to the other side
-    auto distanceFromPlane = (end - plane.getCenter()).dot(plane.getNormal());
-    if (distanceFromPlane < 0.0)
+    auto const dist = DistToPlane(plane, end);
+    if (dist * DistToPlane(plane, x0) <= 0.0)
     { // wrong side of plane
-      // CORSIKA_LOG_DEBUG("On the wrong side, current: {}, dir: {}", end, endDir);
-      end = end - endDir.normalized() * distanceFromPlane * 1.001 / endDir.normalized().dot(plane.getNormal());
+      TRACER_LOG_ALL("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
+      end = end + endDir.normalized() * std::max(dist * 1.001, PLANE_CLOSE_TOL);
+      TRACER_LOG_ALL("After correction " + str(end));
     }
 
     TRACER_LOG_TRACE("New direction xf " + str(end) + " vf: " + str(endDir));
@@ -916,22 +951,14 @@ namespace c8_tracer
     auto const normStartDir = startDir.normalized();
     LengthType stepSize = INITAL_STEP_SIZE;
     LengthType prevStep = stepSize;
+    LengthType stepLength;
+    double avgN;
 
     // path variables
     LengthType weightedIndexOfRefraction = 0.0;
     auto propLength = 0.0;
     double fresnelS = 1.0;
     double fresnelP = 1.0;
-
-    auto accumulateSegment = [&](Point const &a, Point const &b)
-    {
-      auto const diff = b - a;
-      auto const dist = diff.getNorm();
-      auto const avgPos = a + diff * 0.5;
-      auto const n = env.get_n(avgPos);
-      weightedIndexOfRefraction += n * dist;
-      propLength += dist;
-    };
 
     uint istep = 0;
 
@@ -940,7 +967,8 @@ namespace c8_tracer
 
       if (istep > 0)
       {
-        accumulateSegment(x0, end);
+        weightedIndexOfRefraction += avgN * stepLength;
+        propLength += stepLength;
         if (recordPath)
         {
           path.addToEnd(end);
@@ -952,7 +980,7 @@ namespace c8_tracer
       v0 = endDir;
       prevStep = stepSize;
 
-      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, true);
+      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, stepLength, avgN, true);
 
       // check for plane crossings
       for (auto const &plane : reflectionLayers_)
@@ -999,7 +1027,7 @@ namespace c8_tracer
       auto root = [&](double mult)
       {
         currentStepSize = stepSize * mult;
-        TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, false);
+        TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, stepLength, avgN, false);
         return distMethod(end);
       };
 
@@ -1008,7 +1036,7 @@ namespace c8_tracer
                        ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
       currentStepSize = stepSize * frac;
       TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(currentStepSize));
-      TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, false); // take found step
+      TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, stepLength, avgN, false); // take found step
       TRACER_LOG_TRACE("Final values, x0: " + str(x0) +
                        ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
     }
@@ -1018,7 +1046,8 @@ namespace c8_tracer
     }
 
     path.addToEnd(end);
-    accumulateSegment(x0, end);
+    weightedIndexOfRefraction += avgN * stepLength;
+    propLength += stepLength;
 
     auto const avgIndex = weightedIndexOfRefraction / propLength;
     auto const propTime = weightedIndexOfRefraction / constants::c;
@@ -1034,9 +1063,10 @@ namespace c8_tracer
 
   void RayTracer2D::TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                                      Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                                     double &stepLength, double &avgN,
                                      bool updateStep)
   {
-    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, updateStep);
+    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, stepLength, avgN, updateStep);
     stepsTaken_++;
   }
 

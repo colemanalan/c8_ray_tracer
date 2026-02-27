@@ -4,6 +4,7 @@
 
 #include "c8_tracer/environment.hpp"
 #include "c8_tracer/logger.hpp"
+#include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/vec3.hpp"
 
 namespace c8_tracer
@@ -17,6 +18,8 @@ namespace c8_tracer
 
     std::array<Vec3, 6> posPerStep_;
     std::array<Vec3, 6> dirPerStep_;
+    std::array<LengthType, 6> lenPerStep_;
+    std::array<double, 6> nPerStep_;
 
     // Cash-Karp coefficients
     // clang-format off
@@ -41,6 +44,7 @@ namespace c8_tracer
 
     void AdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                       Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                      LengthType &stepLength, double &avgN,
                       bool updateStep = true)
     {
 
@@ -58,17 +62,17 @@ namespace c8_tracer
       do
       {
         h = hNew;
-        Step(x0, v0, xf, vf, error, h, env);
+        Step(x0, v0, xf, vf, error, h, env, stepLength, avgN);
 
         ratio = error.norm() * inverseTol_;
         hNew = h * 0.95f *
                pow(ratio, -0.2f); // update step size to keep error close to tolerance
-        hNew = std::max(0.1f * h, std::min(hNew, 5 * h));
+        hNew = std::max(0.1f * h, std::min(hNew, 2 * h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
 
         TRACER_LOG_ALL("Test step: pos " + xf.to_string() + " dir " + vf.to_string() +
-                          " err " + std::to_string(error.norm()) + " err-ratio " + std::to_string(ratio) +
-                          " h " + std::to_string(h) + " hNew " + std::to_string(hNew));
+                       " err " + std::to_string(error.norm()) + " err-ratio " + std::to_string(ratio) +
+                       " h " + std::to_string(h) + " hNew " + std::to_string(hNew));
 
         if (hNew == minStep_)
         {
@@ -88,13 +92,17 @@ namespace c8_tracer
 
     void Step(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
               Vec3 &endDir, Vec3 &dirError, double const h,
-              EnvironmentBase const &env)
+              EnvironmentBase const &env,
+              LengthType &stepLength, double &avgN)
     {
 
       // Copy the location
       endPos = Vec3(startPos);
       endDir = Vec3(startDir);
       dirError = Vec3(0.0, 0.0, 0.0);
+
+      stepLength = 0.0;
+      avgN = 0.0;
 
       for (size_t i = 0; i < 6; i++)
       {
@@ -109,7 +117,8 @@ namespace c8_tracer
         }
 
         // Calculate optical properties
-        auto const inverseRefract = 1.0 / env.get_n(tempPos);
+        double const n_refract = env.get_n(tempPos);
+        auto const inverseRefract = 1.0 / n_refract;
 
         posPerStep_[i] = tempDir.normalized() * inverseRefract; // \hat{v} / n
         dirPerStep_[i] = env.get_grad_n(tempPos) * inverseRefract *
@@ -118,7 +127,15 @@ namespace c8_tracer
         endPos = endPos + posPerStep_[i] * parB_[i] * h;
         endDir = endDir + dirPerStep_[i] * parB_[i] * h;
         dirError = dirError + dirPerStep_[i] * (parB_[i] - parC_[i]) * h;
+
+        // accumulate average properties
+        lenPerStep_[i] = posPerStep_[i].norm();
+        nPerStep_[i] = n_refract;
+        stepLength += lenPerStep_[i] * parB_[i] * h;
+        avgN += nPerStep_[i] * parB_[i] * h;
       }
+
+      avgN /= stepLength;
     }
   };
 

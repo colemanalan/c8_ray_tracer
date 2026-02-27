@@ -15,12 +15,16 @@ void bind_cash_karp(py::module_ &m)
            {
         Vec3 endPos, endDir;
         double h0_copy = h0;
-        self.AdaptiveStep(startPos, startDir, endPos, endDir, h0_copy, env, updateStep);
-        return py::make_tuple(endPos, endDir, h0_copy); }, py::arg("startPos"), py::arg("startDir"), py::arg("env"), py::arg("h0"), py::arg("updateStep") = true)
+        LengthType stepLength;
+        double avgN;
+        self.AdaptiveStep(startPos, startDir, endPos, endDir, h0_copy, env, stepLength, avgN, updateStep);
+        return py::make_tuple(endPos, endDir, h0_copy, stepLength, avgN); }, py::arg("startPos"), py::arg("startDir"), py::arg("env"), py::arg("h0"), py::arg("updateStep") = true)
 
       .def("Step", [](CashKarpIntegrator &self, const Vec3 &startPos, const Vec3 &startDir, double h0, const EnvironmentBase &env)
            {
         Vec3 endPos, endDir, dirError;
-        self.Step(startPos, startDir, endPos, endDir, dirError, h0, env);
-        return py::make_tuple(endPos, endDir, dirError); });
+        LengthType stepLength;
+        double avgN;
+        self.Step(startPos, startDir, endPos, endDir, dirError, h0, env, stepLength, avgN);
+        return py::make_tuple(endPos, endDir, dirError, stepLength, avgN); });
 }

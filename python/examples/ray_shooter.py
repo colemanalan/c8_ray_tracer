@@ -13,6 +13,66 @@ has been reached regardless of how close to the target it is
 """
 
 
+class TestNRMCInterface():
+    def __init__(self):
+        from c8_tracer.c8_tracer_ext import environment
+        logging.logger_tracer.set_level(logging.LogLevel.TRACE)
+
+
+        n_deep = 1.78
+        delta_n = 0.423
+        length_scale = 77.0
+        axis = Vec3(0, 0, 1)
+        ref_point = Vec3(0, 0, 0)
+
+        self.env_flat = environment.IsotropicEnvironment(n_deep + delta_n)
+        self.env_expo = environment.CartesianSingleExponentialEnvironment(
+            n_deep,
+            delta_n,
+            length_scale,
+            axis,
+            ref_point,
+        )
+
+        self.axis_of_symmetry = axis
+        self.perp_dir = (Vec3(2.3, 1.1, 1.3).cross(axis)).normalized()
+        self.min_step = 0.00001
+        self.max_step = 10.0
+        self.tolerance = 1e-6
+        self.nRays = 13
+
+        self.start = Vec3(0, 0, 0)
+        self.target_even = self.start + self.perp_dir * 50.0
+        self.target_general = self.target_even + self.axis_of_symmetry * 40.0
+        self.plane_height = self.start + self.axis_of_symmetry * 100.0
+        self.target_across_plane = self.plane_height + self.perp_dir * 50.0
+
+        tracer = self.get_tracer(True)
+        paths = tracer.GetSignalPaths(self.start, self.target_even, self.env_flat)
+        print(len(paths))
+        print(paths)
+
+    def get_tracer(self, with_mirror=False):
+        tracer = RayTracer2D(
+            self.axis_of_symmetry,
+            self.min_step,
+            self.max_step,
+            self.tolerance,
+            self.nRays,
+        )
+
+        if with_mirror:
+            tracer.AddReflectionLayer(
+                Plane(self.plane_height, self.axis_of_symmetry)
+            )
+
+        return tracer
+
+TestNRMCInterface()
+
+exit()
+
+
 class AirAndIce(EnvironmentBase):
     def __init__(self):
         super().__init__()
