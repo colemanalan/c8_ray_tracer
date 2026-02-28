@@ -44,6 +44,7 @@ def CreateNRMCRayTracer(
     :param nRays: defines how many rays are cast in the initial scan each time a solution
     is searched for (more will run slowed but will fail less often)
 
+    :rtype: c8_tracer.RayTracer2D
     :return: initialized instance of a C8 raytracer
     """
     axis_of_symmetry = Vec3(0, 0, 1)  # z_hat
@@ -79,6 +80,7 @@ def CreateNRMCWrappedRayTracer(
     :param nRays: defines how many rays are cast in the initial scan each time a solution
     is searched for (more will run slowed but will fail less often)
 
+    :rtype: list[SignalPath]
     :return: function that wraps an initialized ray tracer. The function takes two
     np.ndarrays as pos1 and pos2 and returns the direct and refracted solutions
     """

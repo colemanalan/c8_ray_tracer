@@ -5,8 +5,8 @@
 #include "c8_tracer/transcribed/brent.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
 
-#define STOP_CLOSE_LENGTH 0.00001 // max distance for stopping criteria in Brent Loops
-#define PLANE_CLOSE_TOL 0.000005  // max distance for finding intersections with planes
+#define STOP_CLOSE_LENGTH 0.000005 // max distance for stopping criteria in Brent Loops
+#define PLANE_CLOSE_TOL 0.00005  // max distance for finding intersections with planes
 #define DCOS_TOL 1e-6             // limit in cosine distance before quitting opt loops
 #define MAX_RAY_STEPS 10000       // max steps taken before quitting
 #define INITAL_STEP_SIZE 0.1      // fist step will always been this large
@@ -843,6 +843,7 @@ namespace c8_tracer
     end = sigPath.getEnd();
     endDir = sigPath.receive_;
 
+    TRACER_LOG_DEBUG("Dist is " + str(abs(distFunc(end))) + " tol is " + str(PLANE_CLOSE_TOL));
     return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
   }
 

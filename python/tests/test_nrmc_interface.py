@@ -6,7 +6,7 @@ from c8_tracer import nrmc_interface
 from c8_tracer.c8_tracer_ext import Vec3
 
 
-class FakeNRMCModel:
+class FakeNRMCModel:  # this is a copy of the relevant NRMC env API
     def __init__(self):
         self.z_air_boundary = 0.0
 
@@ -14,7 +14,7 @@ class FakeNRMCModel:
         return 1.33
 
     def get_gradient_of_index_of_refraction(self, _):
-        return np.zeros(3)
+        return np.array([0, 0, 1e-4])
 
 
 class TestNRMCInterface(unittest.TestCase):
@@ -27,9 +27,11 @@ class TestNRMCInterface(unittest.TestCase):
         true_n = self.nrmc_model.get_index_of_refraction([0, 0, 0])
         true_grad = Vec3(self.nrmc_model.get_gradient_of_index_of_refraction([0, 0, 0]))
 
+        # corrrectly passes through the n value
         self.assertAlmostEqual(env.get_n(Vec3(1, 2, 3)), true_n)
         self.assertAlmostEqual(env.get_n(Vec3(0, 0, 0)), true_n)
 
+        # corrrectly passes through the grad
         self.assertAlmostEqual((env.get_grad_n(Vec3(0, 0, 0)) - true_grad).norm(), 0.0)
         self.assertAlmostEqual((env.get_grad_n(Vec3(1, 2, 3)) - true_grad).norm(), 0.0)
 
@@ -66,7 +68,7 @@ class TestNRMCInterface(unittest.TestCase):
         )
 
         path_list = trace_to_point(
-            np.array([1.0, 0.0, -100.0]), np.array([50.0, 0.0, -100.0])
+            np.array([1.0, 0.0, -100.0]), np.array([100.0, 0.0, -100.0])
         )
         self.assertEqual(len(path_list), 2)
 
@@ -105,3 +107,7 @@ class TestNRMCInterface(unittest.TestCase):
                 np.array([20.0, 20.0, -70.0]),
                 wrong_pos,
             )
+
+
+if __name__ == "__main__":
+    unittest.main()
