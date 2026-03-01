@@ -1,5 +1,5 @@
 import unittest
-from c8_tracer import Vec2, Vec3
+from c8_tracer.c8_tracer_ext import Vec2, Vec3
 
 
 class TestVec2(unittest.TestCase):

@@ -1,7 +1,7 @@
 import unittest
 
-from c8_tracer import Vec3
-from c8_tracer import Plane
+from c8_tracer.c8_tracer_ext import Vec3
+from c8_tracer.c8_tracer_ext import Plane
 
 
 class TestPlane(unittest.TestCase):

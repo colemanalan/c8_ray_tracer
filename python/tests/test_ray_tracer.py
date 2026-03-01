@@ -5,7 +5,7 @@ from c8_tracer.c8_tracer_ext import Plane
 from c8_tracer.c8_tracer_ext import Vec3
 from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
 
-from c8_tracer import logging
+from c8_tracer import logging  # type: ignore
 
 logging.logger_tracer.set_level(logging.LogLevel.ERROR)
 
