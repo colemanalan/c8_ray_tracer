@@ -9,6 +9,20 @@
 
 namespace c8_tracer
 {
+
+  struct KahanSum
+  {
+    double sum = 0.0;
+    double c = 0.0;
+    inline void add(double x)
+    {
+      double y = x - c;
+      double t = sum + y;
+      c = (t - sum) - y;
+      sum = t;
+    }
+  };
+
   class CashKarpIntegrator
   {
   private:
@@ -50,48 +64,39 @@ namespace c8_tracer
 
       double h = std::max(minStep_, std::min(h0, maxStep_));
       double hNew = h;
-      double ratio = 1;
-
-      auto x0(startPos);
-      auto v0(startDir);
-      auto xf(startPos);
-      auto vf(startDir);
-      auto error(startDir);
+      Vec3 posError;
 
       // Loop to take small enough steps to keep the error below tolerance
-      do
+      while (true)
       {
-        h = hNew;
-        Step(x0, v0, xf, vf, error, h, env, stepLength, avgN);
+        Step(startPos, startDir, endPos, endDir, posError, h, env, stepLength, avgN);
 
-        ratio = error.norm() * inverseTol_;
-        hNew = h * 0.95f *
-               pow(ratio, -0.2f); // update step size to keep error close to tolerance
-        hNew = std::max(0.1f * h, std::min(hNew, 2 * h));
+        auto const ratio = posError.norm() * inverseTol_;
+
+        TRACER_LOG_ALL("Test step: pos " + endPos.to_string() + " dir " + endDir.to_string() +
+                       " err " + std::to_string(posError.norm()) + " err-ratio " + std::to_string(ratio) +
+                       " h " + std::to_string(h));
+
+        if (ratio <= 1.0)
+          break;
+
+        hNew = h * 0.95 * std::pow(ratio, -0.2);
+        hNew = std::max(0.1 * h, std::min(hNew, h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
 
-        TRACER_LOG_ALL("Test step: pos " + xf.to_string() + " dir " + vf.to_string() +
-                       " err " + std::to_string(error.norm()) + " err-ratio " + std::to_string(ratio) +
-                       " h " + std::to_string(h) + " hNew " + std::to_string(hNew));
+        if (hNew == h)
+          break;
 
-        if (hNew == minStep_)
-        {
-          TRACER_LOG_ALL("Hist min step size " + std::to_string(minStep_));
-          break; // performed step already at the minimum
-        }
-      } while (ratio > 1);
-
+        h = hNew;
+      }
       if (updateStep)
       {
-        h0 =
-            0.5 * (h0 + hNew); // Update the new step to keep close to tol in future steps
+        h0 = 0.5 * (h0 + hNew); // Update the new step to keep close to tol in future steps
       }
-      endPos = xf;
-      endDir = vf;
     }
 
     void Step(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
-              Vec3 &endDir, Vec3 &dirError, double const h,
+              Vec3 &endDir, Vec3 &posError, double const h,
               EnvironmentBase const &env,
               LengthType &stepLength, double &avgN)
     {
@@ -99,10 +104,11 @@ namespace c8_tracer
       // Copy the location
       endPos = Vec3(startPos);
       endDir = Vec3(startDir);
-      dirError = Vec3(0.0, 0.0, 0.0);
 
-      stepLength = 0.0;
-      avgN = 0.0;
+      posError = Vec3(0.0, 0.0, 0.0);
+
+      KahanSum lenAcc;
+      KahanSum nAcc;
 
       for (size_t i = 0; i < 6; i++)
       {
@@ -126,16 +132,14 @@ namespace c8_tracer
 
         endPos = endPos + posPerStep_[i] * parB_[i] * h;
         endDir = endDir + dirPerStep_[i] * parB_[i] * h;
-        dirError = dirError + dirPerStep_[i] * (parB_[i] - parC_[i]) * h;
+        posError = posError + posPerStep_[i] * (parB_[i] - parC_[i]) * h;
 
-        // accumulate average properties
-        lenPerStep_[i] = posPerStep_[i].norm();
-        nPerStep_[i] = n_refract;
-        stepLength += lenPerStep_[i] * parB_[i] * h;
-        avgN += nPerStep_[i] * lenPerStep_[i] * parB_[i] * h;
+        lenAcc.add(posPerStep_[i].norm() * parB_[i] * h);
+        nAcc.add(n_refract * posPerStep_[i].norm() * parB_[i] * h);
       }
 
-      avgN /= stepLength;
+      stepLength = lenAcc.sum;
+      avgN = nAcc.sum / stepLength;
     }
   };
 
