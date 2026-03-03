@@ -119,6 +119,7 @@ namespace c8_tracer
         endDir = endDir + dirPerStep_[i] * parB_[i] * h;
         dirError = dirError + dirPerStep_[i] * (parB_[i] - parC_[i]) * h;
       }
+    endDir = endDir.normalized();
     }
   };
 
