@@ -78,6 +78,8 @@ namespace c8_tracer
       {
         TRACER_LOG_DEBUG("Gettting path for x0 " + str(start) + " v0 " + str(foundEmit[i]));
         auto const path = GetSignalPath(start, foundEmit[i], end, env);
+        TRACER_LOG_DEBUG("Path end " + str(path.getEnd()) + " target end " + str(end));
+
         signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path) : path);
       }
 
@@ -239,7 +241,7 @@ namespace c8_tracer
       }
 
       auto const dist = Get2DRadialDistance(start, target, testPos);
-      TRACER_LOG_TRACE("Testing cos = " + str(cosine) + " R_err = " + str(dist));
+      TRACER_LOG_TRACE("Result for cos = " + str(cosine) + " R_err = " + str(dist) + "  final pos " + str(testPos));
       return dist;
     };
 
@@ -792,9 +794,11 @@ namespace c8_tracer
     auto const dist = DistToPlane(plane, end);
     if (dist * DistToPlane(plane, x0) <= 0.0)
     { // wrong side of plane
-      TRACER_LOG_ALL("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
-      end = end + endDir.normalized() * std::max(dist * 1.001, PLANE_CLOSE_TOL);
-      TRACER_LOG_ALL("After correction " + str(end));
+      TRACER_LOG_TRACE("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
+      auto const v_perp = plane.getNormal().dot(endDir.normalized());
+      auto const t = abs(dist) / v_perp;
+      TRACER_LOG_ALL("Adding " + str(endDir.normalized() * t * 1.001));
+      end = end + endDir.normalized() * t * 1.001;
     }
 
     TRACER_LOG_TRACE("New direction xf " + str(end) + " vf: " + str(endDir));
@@ -843,7 +847,7 @@ namespace c8_tracer
     end = sigPath.getEnd();
     endDir = sigPath.receive_;
 
-    TRACER_LOG_DEBUG("Dist is " + str(abs(distFunc(end))) + " tol is " + str(PLANE_CLOSE_TOL));
+    TRACER_LOG_TRACE("Dist is " + str(abs(distFunc(end))) + " tol is " + str(PLANE_CLOSE_TOL));
     return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
   }
 
@@ -933,10 +937,14 @@ namespace c8_tracer
     planeIntersectionSteps_ = 0;
   }
 
-  inline SignalPath RayTracer2D::ShootOneRay(Point const &start, DirectionVector const &startDir,
-                                             Point const &target, EnvironmentBase const &env,
-                                             std::function<LengthType(Point const &)> distMethod,
-                                             bool const recordPath, uint const maxSteps)
+  inline SignalPath RayTracer2D::ShootOneRay(
+      Point const &start,
+      DirectionVector const &startDir,
+      Point const &target,
+      EnvironmentBase const &env,
+      std::function<LengthType(Point const &)> distMethod,
+      bool const recordPath,
+      uint const maxSteps)
   {
     raysPropagated_++;
 
@@ -945,57 +953,44 @@ namespace c8_tracer
     Path path(start);
 
     // set of stepping variables
-    auto x0 = start;
-    auto end = start;
-    auto v0 = startDir;
-    auto endDir = startDir;
-    auto const normStartDir = startDir.normalized();
-    LengthType stepSize = INITAL_STEP_SIZE;
-    LengthType prevStep = stepSize;
-    LengthType stepLength;
-    double avgN;
-
-    // path variables
-    LengthType weightedIndexOfRefraction = 0.0;
-    auto propLength = 0.0;
+    Point x0 = start;
+    Point end = start;
+    DirectionVector v0 = startDir;
+    DirectionVector endDir = startDir;
     double fresnelS = 1.0;
     double fresnelP = 1.0;
 
+    LengthType stepSize = INITAL_STEP_SIZE;
+    LengthType stepLength = 0.0;
+    double avgN = 0.0;
+
+    // Accumulated quantities
+    LengthType propLength = 0.0;
+    LengthType weightedIndexOfRefraction = 0.0;
+
     uint istep = 0;
 
-    while (distMethod(end) * distMethod(x0) > 0 && istep < maxSteps)
+    // march forward until we bracket root or hit maxSteps
+    while (distMethod(end) * distMethod(x0) >= 0.0 && istep < maxSteps)
     {
-
-      if (istep > 0)
-      {
-        weightedIndexOfRefraction += avgN * stepLength;
-        propLength += stepLength;
-        if (recordPath)
-        {
-          path.addToEnd(end);
-        }
-      }
-
-      // update current locations
+      // advance one step
       x0 = end;
       v0 = endDir;
-      prevStep = stepSize;
-
       TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, stepLength, avgN, true);
 
-      // check for plane crossings
+      // handle plane crossings
       for (auto const &plane : reflectionLayers_)
       {
-        auto const signFinal = DistToPlane(plane, end);
-        if (signFinal * DistToPlane(plane, x0) < 0.0) // step crosses the plane
+        double s0 = DistToPlane(plane, x0);
+        double s1 = DistToPlane(plane, end);
+
+        if (s0 * s1 < 0.0) // crossed plane
         {
-          if (signFinal * DistToPlane(plane, target) < 0.0)
+          if (DistToPlane(plane, target) * s1 < 0.0)
           {
-            stepSize = prevStep;
             TRACER_LOG_TRACE("Entered reflection loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] =
-                ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -1003,62 +998,82 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered transmission loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] =
-                TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
         }
-
-        istep++;
       }
+
+      // accumulate this step
+      weightedIndexOfRefraction += avgN * stepLength;
+      propLength += stepLength;
+
+      if (recordPath)
+        path.addToEnd(end);
+
+      istep++;
     }
 
-    // if we actually found a potential solution (i.e. didn't run out of steps)
-    // find the zero-crossing of the distMethod function
-    if (distMethod(end) * distMethod(x0) <= 0)
+    // if bracketed the root, refine last step
+    if (distMethod(end) * distMethod(x0) <= 0.0)
     {
-      TRACER_LOG_TRACE("Stopping criteria bounded, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir) +
-                       ", steps: " + str(istep) + ", distEnd: " + str(distMethod(end)) + ", distx0: " + str(distMethod(x0)));
+      // the last accumulated segment will be an overshoot, so remove it
+      if (recordPath)
+      {
+        path.removeFromEnd();
+      }
+      weightedIndexOfRefraction -= avgN * stepLength;
+      propLength -= stepLength;
 
-      LengthType currentStepSize;
+      Point x0_root = x0;
+      DirectionVector v0_root = v0;
 
-      // define stepping function to find the root of (scaling step size)
+      // define the root function to give to Brent Method
       auto root = [&](double mult)
       {
-        currentStepSize = stepSize * mult;
-        TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, stepLength, avgN, false);
-        return distMethod(end);
+        Point e = x0_root;
+        DirectionVector d = v0_root;
+        double h = stepSize * mult;
+        double L = 0.0;
+        double n = 0.0;
+
+        TakeAdaptiveStep(x0_root, v0_root, e, d, h, env, L, n, false);
+        return distMethod(e);
       };
 
-      auto const frac = BrentMethod(root, 0.0, 1.0, distMethod(x0), distMethod(end), STOP_CLOSE_LENGTH);
+      double f0 = distMethod(x0);
+      double f1 = distMethod(end);
+
+      double frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
       TRACER_LOG_TRACE("After final path check, x0: " + str(x0) +
                        ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
-      currentStepSize = stepSize * frac;
-      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(currentStepSize));
-      TakeAdaptiveStep(x0, v0, end, endDir, currentStepSize, env, stepLength, avgN, false); // take found step
-      TRACER_LOG_TRACE("Final values, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+
+      // Take the refined final step (this one is physical)
+      double finalStep = stepSize * frac;
+      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(finalStep));
+      TakeAdaptiveStep(x0, v0, end, endDir, finalStep, env, stepLength, avgN, false);
+
+      weightedIndexOfRefraction += avgN * stepLength;
+      propLength += stepLength;
     }
     else
     {
-      TRACER_LOG_TRACE("Stopping criteria reached! Number of steps taken " + str(istep));
+      TRACER_LOG_TRACE("Solution is not bracketed! nSteps " + str(istep) + ", max steps " + str(maxSteps));
     }
 
-    path.addToEnd(end);
-    weightedIndexOfRefraction += avgN * stepLength;
-    propLength += stepLength;
+    TRACER_LOG_TRACE("Final values, x0: " + str(x0) +
+                     ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+    path.addToEnd(end); // always add the last step
 
-    auto const avgIndex = weightedIndexOfRefraction / propLength;
-    auto const propTime = weightedIndexOfRefraction / constants::c;
+    // calculate the accumulated statistics
+    auto avgIndex = weightedIndexOfRefraction / propLength;
+    auto propTime = weightedIndexOfRefraction / constants::c;
+    auto n0 = env.get_n(start);
+    auto nf = env.get_n(end);
 
-    auto const n0 = env.get_n(start);
-    auto const nf = env.get_n(end);
-
-    TRACER_LOG_TRACE("Solution found ending at " + str(end));
-
-    return SignalPath(propTime, avgIndex, n0, nf, normStartDir, endDir.normalized(),
+    return SignalPath(propTime, avgIndex, n0, nf,
+                      startDir.normalized(), endDir.normalized(),
                       propLength, path, fresnelS, fresnelP);
   }
 
