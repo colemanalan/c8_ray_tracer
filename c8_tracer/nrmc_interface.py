@@ -67,7 +67,7 @@ def CreateNRMCWrappedRayTracer(
     min_step: float = 0.0001,
     max_step: float = 1.0,
     tolerance: float = 1e-8,
-    nRays: float = 13,
+    nRays: float = 31,
 ):
     """
     Creates a ray tracer and wraps it in a function that takes start and end positions
@@ -92,7 +92,9 @@ def CreateNRMCWrappedRayTracer(
     def trace_to_point(pos1: np.ndarray, pos2: np.ndarray) -> list[SignalPath]:
         start = Vec3(pos1[0], pos1[1], pos1[2])
         end = Vec3(pos2[0], pos2[1], pos2[2])
+
         paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
+        paths.sort(key=lambda x: x.R_distance)
 
         return paths
 
