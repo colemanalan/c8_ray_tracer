@@ -77,17 +77,21 @@ namespace c8_tracer
                        " err " + std::to_string(posError.norm()) + " err-ratio " + std::to_string(ratio) +
                        " h " + std::to_string(h));
 
-        if (ratio <= 1.0)
-          break;
-
-        hNew = h * 0.95 * std::pow(ratio, -0.2);
-        hNew = std::max(0.1 * h, std::min(hNew, h));
+        hNew = h * 0.95f *
+               pow(ratio, -0.2f); // update step size to keep error close to tolerance
+        hNew = std::max(0.1f * h, std::min(hNew, 5 * h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
+
+        TRACER_LOG_ALL("h0: " + std::to_string(h0) + " h: " + std::to_string(h) +
+                       " hNew: " + std::to_string(hNew));
 
         if (hNew == h)
           break;
 
         h = hNew;
+
+        if (ratio <= 1.0)
+          break;
       }
       if (updateStep)
       {
@@ -140,6 +144,8 @@ namespace c8_tracer
 
       stepLength = lenAcc.sum;
       avgN = nAcc.sum / stepLength;
+
+      endDir = endDir.normalized();
     }
   };
 
