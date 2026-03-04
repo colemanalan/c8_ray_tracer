@@ -195,6 +195,66 @@ class TestNRMCInterface(unittest.TestCase):
         )
         self.assertEqual(len(paths), 2)
 
+    def test_Reversable(self):
+        tracer = self.get_tracer(True)
+        paths_start_target = tracer.GetSignalPaths(
+            self.start, self.target_general, self.env_flat
+        )
+        self.assertEqual(len(paths_start_target), 2)
+
+        paths_target_start = tracer.GetSignalPaths(
+            self.target_general, self.start, self.env_flat
+        )
+        self.assertEqual(len(paths_target_start), 2)
+
+        for i in range(2):
+            self.assertAlmostEqual(
+                paths_start_target[i].refractive_index_source,
+                paths_target_start[i].average_refractive_index,
+            )
+            self.assertAlmostEqual(
+                paths_start_target[i].emit.z, paths_target_start[i].receive.z * -1
+            )
+            self.assertAlmostEqual(
+                paths_start_target[i].receive.z, paths_target_start[i].emit.z * -1
+            )
+            self.assertAlmostEqual(
+                paths_start_target[i].propagation_time,
+                paths_target_start[i].propagation_time,
+            )
+            self.assertAlmostEqual(
+                paths_start_target[i].R_distance, paths_target_start[i].R_distance
+            )
+            self.assertAlmostEqual(
+                paths_start_target[i].average_refractive_index,
+                paths_target_start[i].average_refractive_index,
+            )
+
+    def test_CorrectLength(self):
+        tracer = self.get_tracer(True)
+        paths = tracer.GetSignalPaths(self.start, self.target_general, self.env_flat)
+        self.assertEqual(len(paths), 2)
+
+        dist = (self.start - self.target_general).norm()
+
+        # start and end are in the right place (no off-by-one)
+        self.assertAlmostEqual(paths[0].getStart().x, self.start.x)
+        self.assertAlmostEqual(paths[0].getStart().y, self.start.y)
+        self.assertAlmostEqual(paths[0].getStart().z, self.start.z)
+        self.assertAlmostEqual(paths[0].getEnd().x, self.target_general.x)
+        self.assertAlmostEqual(paths[0].getEnd().y, self.target_general.y)
+        self.assertAlmostEqual(paths[0].getEnd().z, self.target_general.z)
+
+        # Sum the length from segments
+        total = 0.0
+        for i in range(len(paths[0])):
+            total += (paths[0].getPoint(i + 1) - paths[0].getPoint(i)).norm()
+
+        self.assertAlmostEqual(dist, total)
+
+        # the accumulated distance in the path is also the same distance
+        self.assertAlmostEqual(dist, paths[0].R_distance)
+
 
 if __name__ == "__main__":
     unittest.main()
