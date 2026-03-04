@@ -38,7 +38,7 @@ class TestNRMCInterface():
         self.perp_dir = (Vec3(2.3, 1.1, 1.3).cross(axis)).normalized()
         self.min_step = 0.00001
         self.max_step = 10.0
-        self.tolerance = 1e-6
+        self.tolerance = 1e-9
         self.nRays = 13
 
         self.start = Vec3(0, 0, 0)
