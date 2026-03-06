@@ -323,6 +323,9 @@ namespace c8_tracer
                           Vec3 &endDir, double &h0, EnvironmentBase const &env,
                           LengthType &stepLength, double &avgN,
                           bool updateStep = true);
+    void TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
+                       Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                       double &stepLength, double &avgN);
   };
 }
 

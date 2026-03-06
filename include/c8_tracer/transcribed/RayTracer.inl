@@ -4,10 +4,11 @@
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/brent.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
+#include "RayTracer.hpp"
 
 #define STOP_CLOSE_LENGTH 0.000005 // max distance for stopping criteria in Brent Loops
-#define PLANE_CLOSE_TOL 0.00005    // max distance for finding intersections with planes
-#define DCOS_TOL 1e-6              // limit in cosine distance before quitting opt loops
+#define PLANE_CLOSE_TOL 1e-6       // max distance for finding intersections with planes
+#define DCOS_TOL 1e-8              // limit in cosine distance before quitting opt loops
 #define MAX_RAY_STEPS 10000        // max steps taken before quitting
 #define INITAL_STEP_SIZE 0.1       // fist step will always be this large
 
@@ -253,6 +254,9 @@ namespace c8_tracer
     double cosMin = -1.0;
     double cosMax = 1.0;
     int nRays = nRaysInit;
+
+    // These rays cannot propagate since the medium is symmetric about the axis
+    cachedSamples[cosMin] = cachedSamples[cosMax] = Get2DRadialDistance(start, target, start);
 
     TRACER_LOG_INFO("Finding solution using " + std::to_string(nRays) + " rays");
 
@@ -655,7 +659,7 @@ namespace c8_tracer
 
       initSteps++;
       initStepSize *= 2.0;
-      TakeAdaptiveStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN, false);
+      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN);
       f1 = DistToPlane(plane, end);
     }
 
@@ -665,13 +669,13 @@ namespace c8_tracer
     auto root = [&](double mult)
     {
       testStep = brentStep * mult;
-      TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, stepLength, avgN, false);
+      TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN);
       return DistToPlane(plane, end);
     };
 
-    auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
+    auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, PLANE_CLOSE_TOL);
     testStep = brentStep * frac;
-    TakeAdaptiveStep(x0, v0, end, endDir, testStep, env, stepLength, avgN, false); // take found step
+    TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN); // take found step
 
     planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
@@ -1077,12 +1081,21 @@ namespace c8_tracer
                       propLength, path, fresnelS, fresnelP);
   }
 
-  void RayTracer2D::TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
-                                     Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                                     double &stepLength, double &avgN,
-                                     bool updateStep)
+  inline void RayTracer2D::TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
+                                            Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                                            LengthType &stepLength, double &avgN,
+                                            bool updateStep)
   {
     tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, stepLength, avgN, updateStep);
+    stepsTaken_++;
+  }
+
+  inline void RayTracer2D::TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
+                                         Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                                         double &stepLength, double &avgN)
+  {
+    Vec3 posErr(0, 0, 0);
+    tracer_.Step(startPos, startDir, endPos, endDir, posErr, h0, env, stepLength, avgN);
     stepsTaken_++;
   }
 
