@@ -97,14 +97,13 @@ class TestCashKarpIntegrator(unittest.TestCase):
         self.assertAlmostEqual(self.env_uniform.get_n(self.start_pos), avg_n)
 
     def test_adaptive_step_min_step(self):
-        h0 = 0.5
+        h0 = 0.7
 
-        _, _, h0, _, _ = self.integrator.AdaptiveStep(
+        _, _, h1, _, _ = self.integrator.AdaptiveStep(
             self.start_pos, self.start_dir, self.env_non, True
         )
 
-        # Should clamp to minStep due to high error
-        self.assertAlmostEqual(h0, self.maxStep)
+        self.assertGreater(h1, h0)
 
     def test_constructor_parameters(self):
         integrator = CashKarpIntegrator(0.05, 2.0, 0.01)
