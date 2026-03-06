@@ -18,7 +18,7 @@ namespace c8_tracer
     if (fa * fb > 0.0)
     {
       TRACER_LOG_ERROR("Root not bracketed in initial call " +
-                       std::to_string(fa) + " " + std::to_string(fb) + 
+                       std::to_string(fa) + " " + std::to_string(fb) +
                        " " + std::to_string(fa * fb));
       throw std::invalid_argument("Root not bracketed " +
                                   std::to_string(fa) + " " + std::to_string(fb));
@@ -94,7 +94,6 @@ namespace c8_tracer
       }
     }
 
-    logger_tracer.debug("Brent max iterations reached");
     return b;
   }
 }
