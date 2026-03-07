@@ -4,6 +4,7 @@
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/brent.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
+#include "c8_tracer/transcribed/CosineScanner.hpp"
 #include "RayTracer.hpp"
 
 #define STOP_CLOSE_LENGTH 0.000005 // max distance for stopping criteria in Brent Loops
@@ -246,90 +247,58 @@ namespace c8_tracer
       return dist;
     };
 
-    std::map<double, LengthType>
-        cachedSamples; // holds solutions to avoid duplicate math
+    CosineScanner scanner(-1.0, 1.0);
+
+    // symmetric rays cannot propagate
+    scanner.Cache(-1.0, Get2DRadialDistance(start, target, start));
+    scanner.Cache(1.0, Get2DRadialDistance(start, target, start));
 
     int iteration = 0;
-
-    double cosMin = -1.0;
-    double cosMax = 1.0;
     int nRays = nRaysInit;
-
-    // These rays cannot propagate since the medium is symmetric about the axis
-    cachedSamples[cosMin] = cachedSamples[cosMax] = Get2DRadialDistance(start, target, start);
 
     TRACER_LOG_INFO("Finding solution using " + std::to_string(nRays) + " rays");
 
     while (iteration < maxIterations)
     {
-      std::vector<double> x_vals(nRays);
 
-      for (int isol = 0; isol < nRays; isol++)
+      auto xvals = scanner.GenerateGrid(nRays);
+
+      // evaluate missing samples in the cache
+      for (double x : xvals)
       {
-        // set up initial ray direction. Pull solutions from cache if available or calculate
-        x_vals[isol] = std::clamp(cosMin + isol * (cosMax - cosMin) / double(nRays - 1.0), -1.0, 1.0);
-        if (cachedSamples.find(x_vals[isol]) == cachedSamples.end())
+        if (!scanner.Has(x))
         {
-          cachedSamples[x_vals[isol]] = dist2D(x_vals[isol]);
+          auto err = dist2D(x);
+          scanner.Cache(x, err);
         }
       }
 
-      // Remove entries with infinity
-      x_vals.erase(
-          std::remove_if(x_vals.begin(), x_vals.end(),
-                         [&](double x)
-                         {
-                           auto it = cachedSamples.find(x);
-                           if (it != cachedSamples.end() && std::isinf(it->second))
-                           {
-                             TRACER_LOG_DEBUG("Bad initial value found, removing cos " + str(it->first) + " from list");
-                             cachedSamples.erase(it); // Remove from map
-                             return true;             // Mark for removal from vector
-                           }
-                           return false;
-                         }),
-          x_vals.end());
+      scanner.RemoveIfInvalid(); // removes inf/nan
 
-      TRACER_LOG_INFO("Initial solutions");
-      for (const auto &x_val : x_vals)
+      TRACER_LOG_INFO("Initial solutions:");
+      for (double x : scanner.SortedCosines())
       {
-        TRACER_LOG_INFO("\tcos(th): " + str(x_val) + "   dR: " + str(cachedSamples[x_val]));
+        TRACER_LOG_INFO("\tcos(th): " + str(x) + "   dR: " + str(scanner.Get(x)));
       }
+
+      // Find sign-change intervals
+      auto intervals = scanner.FindSignChangeIntervals();
 
       std::vector<DirectionVector> foundEmit;
       std::vector<DirectionVector> foundReceive;
 
-      // collect all cached cosines within current bounds
-      std::vector<double> validCosines;
-      for (auto const &[cosine, error] : cachedSamples)
+      for (auto const &[x0, x1] : intervals)
       {
-        if (cosine >= cosMin && cosine <= cosMax)
-        {
-          validCosines.push_back(cosine);
-        }
-      }
+        double f0 = scanner.Get(x0);
+        double f1 = scanner.Get(x1);
 
-      // sort them to ensure adjacent comparisons
-      std::sort(validCosines.begin(), validCosines.end());
+        TRACER_LOG_DEBUG("Using brent on cos0 " + str(x0) + " f0 " +
+                         str(f0) + " cos1 " + str(x1) + " f1 " + str(f1));
+        auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
+        auto const emit = makeDirVec(cosine);
 
-      // look for sign changes between neighboring consine values
-      for (size_t i = 0; i + 1 < validCosines.size(); ++i)
-      {
-        double x0 = validCosines[i];
-        double x1 = validCosines[i + 1];
-        double f0 = cachedSamples[x0];
-        double f1 = cachedSamples[x1];
-
-        if (f0 * f1 <= 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
-        {
-          TRACER_LOG_DEBUG("Using brent on cos0 " + str(x0) + " f0 " +
-                           str(f0) + " cos1 " + str(x1) + " f1 " + str(f1));
-          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
-          auto const emit = makeDirVec(cosine);
-
-          foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
-          foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
-        }
+        foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
+        foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
       }
 
       if (!foundEmit.empty())
@@ -339,48 +308,22 @@ namespace c8_tracer
       }
 
       TRACER_LOG_DEBUG("After iteration " + str(iteration + 1) +
-                       ", no solutions found after shooting " + str(cachedSamples.size()) +
+                       ", no solutions found after shooting " + str(scanner.CacheSize()) +
                        " total rays");
 
-      // update the cosine interval to keep the top 3 solutions
       if (iteration < maxIterations - 1)
       {
-        // choose the three best errors and use that to update the limits of cosMin and cosMax
-        std::vector<std::pair<double, LengthType>> sortedSamples(cachedSamples.begin(), cachedSamples.end());
-
-        // sort by absolute error
-        std::sort(sortedSamples.begin(), sortedSamples.end(),
-                  [](auto const &a, auto const &b)
-                  {
-                    return std::abs(a.second) < std::abs(b.second);
-                  });
-
-        // take up to three best samples
-        size_t nBest = std::min<size_t>(3, sortedSamples.size());
-        double newCosMin = sortedSamples[0].first;
-        double newCosMax = sortedSamples[0].first;
-
-        for (size_t i = 1; i < nBest; ++i)
-        {
-          newCosMin = std::min(newCosMin, sortedSamples[i].first);
-          newCosMax = std::max(newCosMax, sortedSamples[i].first);
-        }
-
-        cosMin = std::max(-1.0, newCosMin);
-        cosMax = std::min(1.0, newCosMax);
-        TRACER_LOG_DEBUG("New cosine limits are " + str(cosMin) + " and " + str(cosMax));
-        TRACER_LOG_DEBUG("Closest point at " + str(sortedSamples[0].second));
+        scanner.UpdateBoundsFromBest(3);
       }
 
-      if (!iteration)
-      {
+      if (iteration == 0)
         nRays += 2;
-      }
+
       iteration++;
     }
 
-    TRACER_LOG_INFO("Solution finding failed after shooting " + str(cachedSamples.size()) +
-                    " total rays. Current dcos = " + str((cosMax - cosMin) / float(nRays)));
+    TRACER_LOG_INFO("Solution finding failed after shooting " + str(scanner.CacheSize()) +
+                    " total rays");
     return std::make_tuple(std::vector<DirectionVector>{}, std::vector<DirectionVector>{});
   }
 
