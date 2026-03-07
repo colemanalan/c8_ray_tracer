@@ -103,7 +103,13 @@ void bind_raytracer(py::module_ &m)
         .def("ResetProfiling", &RayTracer2D::ResetProfiling)
         .def("ShootOneRayToMaximumR", &RayTracer2D::ShootOneRayToMaximumR)
         .def("ShootOneRayToMinimumZ",
-             static_cast<bool (RayTracer2D::*)(Point const &, DirectionVector const &,
-                                               Point &, DirectionVector &, Point const &,
-                                               EnvironmentBase const &)>(&RayTracer2D::ShootOneRayToMinimumZ));
+             static_cast<bool (RayTracer2D::*)(
+                 Point const &, DirectionVector const &, Point &,
+                 DirectionVector &, Point const &,
+                 EnvironmentBase const &)>(&RayTracer2D::ShootOneRayToMinimumZ))
+        .def("ShootOneRayToMinimumZ",
+             static_cast<bool (RayTracer2D::*)(
+                 Point const &, DirectionVector const &, Point &,
+                 DirectionVector &, Plane const &,
+                 EnvironmentBase const &)>(&RayTracer2D::ShootOneRayToMinimumZ));
 }

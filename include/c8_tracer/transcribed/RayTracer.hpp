@@ -256,33 +256,6 @@ namespace c8_tracer
                                                     EnvironmentBase const &env);
 
     /*
-    This helps find the point that is exactly a specified lateral distance (see
-    `Get2DProjection`) away from `x0`. The function performs a binary search to find
-    the step size required such that the propagation is at the correct distance. This
-    function expects to only need to perform a single step and optimizes the step size
-    such that the ray arrives at the boundary
-
-    Arguments:
-      x0:
-        starting location of the launch point (should be only 1 step away from the
-        boundary)
-      v0:
-        initial direction of propagation at `x0`
-      end:
-        this value will be updated with the final location (will be sqrt(`rMaxSq`) from
-      endDir:
-        this value will be update with direction at `end` point
-      rMaxSq:
-        plane that is doing the reflecting step: maximum step size in the binary
-        search
-
-      env: description of the refractive index and gradient
-    */
-    void FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
-                    DirectionVector &endDir, LengthTypeSq const rMaxSq,
-                    LengthType const step, EnvironmentBase const &env);
-
-    /*
     Gets the projection in the x-y plane of the vector from `x0` to `x1`
     The x-y plane is defined in the coordinate system of `x0`
     */
@@ -317,16 +290,18 @@ namespace c8_tracer
     LengthType DistToPlane(Plane const &p, Point const &x) { return (x - p.getCenter()).dot(p.getNormal()); }
 
     // Main function for propagating rays forward and handling effects during propagation
+    template <typename DistFunc>
     SignalPath ShootOneRay(Point const &start, DirectionVector const &startDir,
                            Point const &target, EnvironmentBase const &env,
-                           std::function<LengthType(Point const &)> stopMethod,
-                           bool const accumulate, uint const maxSteps);
+                           DistFunc distMethod, bool const recordPath,
+                           uint const maxSteps);
 
     // Wrapper for the Adaptive step of the ray tracer
     void TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                           Vec3 &endDir, double &h0, EnvironmentBase const &env,
                           LengthType &stepLength, double &avgN,
                           bool updateStep = true);
+
     void TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                        Vec3 &endDir, double &h0, EnvironmentBase const &env,
                        double &stepLength, double &avgN);

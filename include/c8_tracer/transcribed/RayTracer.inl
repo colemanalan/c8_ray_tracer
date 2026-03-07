@@ -229,11 +229,12 @@ namespace c8_tracer
       return DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
     };
 
+    Plane const targetPlane(target, axis_);
     // construct a distance function
     auto dist2D = [&](double cosine)
     {
       auto const startDir = makeDirVec(cosine);
-      auto const success = ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
+      auto const success = ShootOneRayToMinimumZ(start, startDir, testPos, testDir, targetPlane, env);
 
       // handle rays that never hit minimum z
       if (!success)
@@ -344,6 +345,7 @@ namespace c8_tracer
     Point start = sourceXX;
     Point end = targetXX;
     bool flippedStartEnd = false;
+    Plane const endPlane(end, axis_);
 
     if (_GetZ(end) > _GetZ(start))
     {
@@ -352,7 +354,7 @@ namespace c8_tracer
       std::swap(start, end);
       flippedStartEnd = true;
 
-      ShootOneRayToMinimumZ(start, v1, testPos, testDir, end, env);
+      ShootOneRayToMinimumZ(start, v1, testPos, testDir, endPlane, env);
       TRACER_LOG_TRACE("Flipping start/end positions. original " + str(testDir.normalized()) +
                        ", flipped " + str(testDir.normalized() * -1));
       v1 = v2 = testDir.normalized() * -1;
@@ -369,7 +371,7 @@ namespace c8_tracer
 
     auto fireRay = [&](DirectionVector const &dir)
     {
-      auto const success = ShootOneRayToMinimumZ(start, dir, testPos, testDir, end, env);
+      auto const success = ShootOneRayToMinimumZ(start, dir, testPos, testDir, endPlane, env);
       if (!success)
       {
         return Get2DRadialDistance(start, end, start) - 1.0;
@@ -899,12 +901,13 @@ namespace c8_tracer
     planeIntersectionSteps_ = 0;
   }
 
+  template <typename DistFunc>
   inline SignalPath RayTracer2D::ShootOneRay(
       Point const &start,
       DirectionVector const &startDir,
       Point const &target,
       EnvironmentBase const &env,
-      std::function<LengthType(Point const &)> distMethod,
+      DistFunc distMethod,
       bool const recordPath,
       uint const maxSteps)
   {
@@ -945,10 +948,11 @@ namespace c8_tracer
       {
         double s0 = DistToPlane(plane, x0);
         double s1 = DistToPlane(plane, end);
+        double sTarget = DistToPlane(plane, target);
 
         if (s0 * s1 < 0.0) // crossed plane
         {
-          if (DistToPlane(plane, target) * s1 < 0.0)
+          if (sTarget * s1 < 0.0)
           {
             TRACER_LOG_TRACE("Entered reflection loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
@@ -1035,7 +1039,7 @@ namespace c8_tracer
     auto nf = env.get_n(end);
 
     return SignalPath(propTime, avgIndex, n0, nf,
-                      startDir.normalized(), endDir.normalized(),
+                      startDir.normalized(), endDir,
                       propLength, path, fresnelS, fresnelP);
   }
 
