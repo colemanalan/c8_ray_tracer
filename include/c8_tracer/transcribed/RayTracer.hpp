@@ -164,6 +164,10 @@ namespace c8_tracer
                                Point &end, DirectionVector &endDir, Point const &target,
                                EnvironmentBase const &env);
 
+    bool ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
+                               Point &end, DirectionVector &endDir, Plane const &target,
+                               EnvironmentBase const &env);
+
     /*
     This does a binary search to find the point on the plane and that the ray
     intersects. This function expects to only need to perform a single step

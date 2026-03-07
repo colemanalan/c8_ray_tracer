@@ -759,43 +759,58 @@ namespace c8_tracer
                                                  EnvironmentBase const &env)
   {
     auto const minimumPlane = Plane(target, axis_);
+    return ShootOneRayToMinimumZ(start, startDir, end, endDir, minimumPlane, env);
+  }
 
-    auto distFunc = [&](Point const &x)
-    {
-      return DistToPlane(minimumPlane, x);
-    };
+  inline bool RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
+                                                 DirectionVector const &startDir,
+                                                 Point &end, DirectionVector &endDir,
+                                                 Plane const &targetPlane,
+                                                 EnvironmentBase const &env)
+  {
 
-    auto const startDist = distFunc(start);
-    auto useStart = start;
+    auto const startDist = DistToPlane(targetPlane, start);
+
     if (startDist < 0)
     {
-      TRACER_LOG_WARNING("Starting shot from below the target Z! " + str(start) + " < " + str(target));
+      TRACER_LOG_WARNING("Starting shot from below the target Z! " + str(start) + " < " + str(targetPlane.getCenter()));
       end = start;
       endDir = startDir;
       return false;
     }
-    else if (startDist == 0)
+
+    auto useStart = start;
+    if (startDist == 0)
     {
       if (_GetZ(startDir) < 0)
       {
-        TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
+        TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(targetPlane.getCenter()) +
                          " and pointed downwards " + str(startDir) + " failing");
         end = start;
         endDir = startDir;
         return true;
       }
+
       useStart = start + axis_ * PLANE_CLOSE_TOL / 2.0;
-      TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
+      TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(targetPlane.getCenter()) +
                        " adjusting start pos to: " + str(useStart));
     }
 
-    SignalPath const sigPath = ShootOneRay(useStart, startDir, target, env, distFunc, false, MAX_RAY_STEPS);
+    auto distFunc = [&](Point const &x)
+    {
+      return DistToPlane(targetPlane, x);
+    };
+
+    SignalPath const sigPath = ShootOneRay(useStart, startDir, targetPlane.getCenter(), env, distFunc, false, MAX_RAY_STEPS);
 
     end = sigPath.getEnd();
     endDir = sigPath.receive_;
 
-    TRACER_LOG_TRACE("Dist is " + str(abs(distFunc(end))) + " tol is " + str(PLANE_CLOSE_TOL));
-    return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
+    double endDist = std::abs(DistToPlane(targetPlane, end));
+
+    TRACER_LOG_TRACE("Dist is " + str(endDist) + " tol is " + str(PLANE_CLOSE_TOL));
+
+    return endDist < (2.0 * PLANE_CLOSE_TOL);
   }
 
   inline bool RayTracer2D::ShootOneRayToMaximumR(Point const &start,
