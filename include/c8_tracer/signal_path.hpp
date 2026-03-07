@@ -40,7 +40,7 @@ namespace c8_tracer
              " receive: " + std::to_string(receive_) +
              " " + Path::to_string() + "]";
     }
-    const_iterator begin() const { return Path::begin(); }
+    const_iterator begin() const { return Path::begin(); } // for pybindings
     const_iterator end() const { return Path::end(); }
   };
 
@@ -48,7 +48,7 @@ namespace c8_tracer
   {
     Path flippedPath(inPath.getEnd());
 
-    for (int ibin = inPath.getNSegments() - 2; ibin >= 0; ibin--)
+    for (int ibin = inPath.getNSegments() - 1; ibin >= 0; ibin--)
     {
       flippedPath.addToEnd(inPath.getPoint(ibin));
     }

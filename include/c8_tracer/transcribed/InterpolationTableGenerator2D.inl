@@ -16,7 +16,7 @@ namespace c8_tracer
   inline std::vector<RayTracingTable>
   InterpolationTableGenerator2D::GenerateTables(
       LengthType minR, LengthType maxR, uint const nRBins, LengthType minZ,
-      LengthType maxZ, uint const nZBins, Point const &antennaPos) const
+      LengthType maxZ, uint const nZBins, Point const &antennaPos, SolutionMethod method) const
   {
 
     /*
@@ -106,7 +106,12 @@ namespace c8_tracer
         LOG_DEBUG("Target " + std::to_string(target));
         LOG_DEBUG("N " + std::to_string(env_.get_n(start)));
 
-        auto const signalPaths = rayTracer_.GetSignalPaths(start, target, env_);
+        std::vector<SignalPath> signalPaths;
+        if (method == SolutionMethod::Brent)
+          signalPaths = rayTracer_.GetSignalPaths(start, target, env_);
+
+        if (method == SolutionMethod::NGD)
+          signalPaths = rayTracer_.PropagateToPoint(start, target, env_);
 
         if (signalPaths.empty())
         {
@@ -221,9 +226,9 @@ namespace c8_tracer
           {
 
             LOG_DEBUG("Bad path, Z " + std::to_string(tables[0].GetZ(iz)) + " R " +
-                     std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
-                     ", success " + std::string(foundSolution ? "True" : "False") +
-                     ", diff " + std::to_string((path.getEnd() - target).getNorm()));
+                      std::to_string(tables[0].GetR(ir)) + ", Sol " + std::to_string(isol) +
+                      ", success " + std::string(foundSolution ? "True" : "False") +
+                      ", diff " + std::to_string((path.getEnd() - target).getNorm()));
             shadowZone = true; // All further radii on this row will be failures
             nMissing++;
           }

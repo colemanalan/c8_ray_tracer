@@ -3,7 +3,7 @@ import numpy as np
 from c8_tracer.c8_tracer_ext import Vec3
 from c8_tracer.c8_tracer_ext.environment import EnvironmentBase
 from c8_tracer.c8_tracer_ext.path import SignalPath
-from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D, SolutionMethod
 
 
 class WrappedEnvironment(EnvironmentBase):
@@ -44,6 +44,7 @@ def CreateNRMCRayTracer(
     :param nRays: defines how many rays are cast in the initial scan each time a solution
     is searched for (more will run slowed but will fail less often)
 
+    :rtype: c8_tracer.RayTracer2D
     :return: initialized instance of a C8 raytracer
     """
     axis_of_symmetry = Vec3(0, 0, 1)  # z_hat
@@ -66,7 +67,7 @@ def CreateNRMCWrappedRayTracer(
     min_step: float = 0.0001,
     max_step: float = 1.0,
     tolerance: float = 1e-8,
-    nRays: float = 13,
+    nRays: float = 31,
 ):
     """
     Creates a ray tracer and wraps it in a function that takes start and end positions
@@ -79,6 +80,7 @@ def CreateNRMCWrappedRayTracer(
     :param nRays: defines how many rays are cast in the initial scan each time a solution
     is searched for (more will run slowed but will fail less often)
 
+    :rtype: list[SignalPath]
     :return: function that wraps an initialized ray tracer. The function takes two
     np.ndarrays as pos1 and pos2 and returns the direct and refracted solutions
     """
@@ -87,17 +89,12 @@ def CreateNRMCWrappedRayTracer(
 
     ray_tracer = CreateNRMCRayTracer(nrmc_model, min_step, max_step, tolerance, nRays)
 
-    def trace_to_point(
-        pos1: np.ndarray, pos2: np.ndarray
-    ) -> list[SignalPath]:
-        
-        # Must be different altitudes for proper z-check
-        if pos1[2] == pos2[2]:
-            pos2[2] -= 1e-9
-
+    def trace_to_point(pos1: np.ndarray, pos2: np.ndarray) -> list[SignalPath]:
         start = Vec3(pos1[0], pos1[1], pos1[2])
         end = Vec3(pos2[0], pos2[1], pos2[2])
+
         paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
+        paths.sort(key=lambda x: x.R_distance)
 
         return paths
 
@@ -115,6 +112,7 @@ def CreateNRMCInterpolationTable(
     max_step: float = 1.0,
     tolerance: float = 1e-8,
     nRays: float = 13,
+    method: SolutionMethod = SolutionMethod.Brent,
 ):
     """
     Creates a ray tracer and wraps it in a function that takes start and end positions
@@ -176,6 +174,7 @@ def CreateNRMCInterpolationTable(
             float(z_up),
             int(z_bins),
             vec_pos,
+            method,
         )
 
         all_tables[_GetDictKey(pos)] = tables
@@ -197,7 +196,6 @@ def CreateNRMCInterpolationTable(
         for table in tables:
             if not table.ContainsPoint(r_i):
                 signal_paths.append(None)  # None for no solution paths
-                continue
 
             signal_path: SignalPath = table.GetSignalPath(
                 r_i, env.get_n(r_i), env.get_n(r_f)

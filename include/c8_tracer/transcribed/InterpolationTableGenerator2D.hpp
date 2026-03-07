@@ -8,6 +8,7 @@
 
 namespace c8_tracer
 {
+
   class InterpolationTableGenerator2D
   {
   public:
@@ -17,7 +18,7 @@ namespace c8_tracer
     std::vector<RayTracingTable> GenerateTables(LengthType minR, LengthType maxR,
                                                 uint const nRBins, LengthType minZ,
                                                 LengthType maxZ, uint const nZBins,
-                                                Point const &antennaPos) const;
+                                                Point const &antennaPos, SolutionMethod method) const;
 
   private:
     uint AnyArrivedAtCorrectLocation_(std::vector<SignalPath> const &paths,

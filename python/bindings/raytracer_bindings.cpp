@@ -73,6 +73,11 @@ void bind_raytracer(py::module_ &m)
 
   py::module_ tracer = m.def_submodule("tracer", "Ray tracers and related materials");
 
+  py::enum_<SolutionMethod>(tracer, "SolutionMethod")
+      .value("Brent", SolutionMethod::Brent)
+      .value("NGD", SolutionMethod::NGD)
+      .export_values();
+
   py::class_<RayTracerBase, PyRayTracerBase>(tracer, "RayTracerBase")
       .def(py::init<DirectionVector>())
       .def("PropagateToPoint", &c8_tracer::RayTracerBase::PropagateToPoint)

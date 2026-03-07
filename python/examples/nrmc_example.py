@@ -2,12 +2,21 @@ import numpy as np
 
 from c8_tracer.nrmc_interface import ConvertSignalPath, CreateNRMCInterpolationTable
 from c8_tracer.c8_tracer_ext import logging
+from c8_tracer.c8_tracer_ext.tracer import SolutionMethod
+
+"""
+This sketches out how this class could be used in the main NRMC loop for simulating
+events by first building an interpolation table
+"""
+
 
 # Can be quite loud without this
 logging.logger.set_level(logging.LogLevel.INFO)
+logging.logger_tracer.set_level(logging.LogLevel.ERROR)
 
 
 # this is a mock up of the NRMC `IceModel` base class
+# so that it can be inherited below
 class DummyIceModel:
     def __init__(self):
         self.z_air_boundary = 0.0
@@ -29,7 +38,7 @@ antennas = [
 shower_pos = np.array([-50.0, 0.0, -150.0])
 
 # This will create the tables and return a function that smoothly converts to/from NRMC
-get_path_to_antenna = CreateNRMCInterpolationTable(
+get_path_to_antenna, tracer = CreateNRMCInterpolationTable(
     ice_model,
     antennas,
     maxR=300.0,
@@ -37,7 +46,10 @@ get_path_to_antenna = CreateNRMCInterpolationTable(
     maxZ=-0.1,
     bin_length=10.0,
     min_step=0.0001,
-    max_step=10.0,
+    max_step=1.0,
+    tolerance=1e-8,
+    nRays=10,
+    method=SolutionMethod.Brent,
 )
 
 # would be the main loop in the NRMC code

@@ -70,8 +70,5 @@ void bind_interpolation_table_generator_2d(py::module_ &m)
               py::arg("ray_tracer"), py::arg("environment"),
               py::keep_alive<1, 2>(), py::keep_alive<1, 3>()) // Ensure references stay alive
 
-         .def("GenerateTables", &InterpolationTableGenerator2D::GenerateTables,
-              py::arg("minR"), py::arg("maxR"), py::arg("nRBins"),
-              py::arg("minZ"), py::arg("maxZ"), py::arg("nZBins"),
-              py::arg("antennaPos"));
+         .def("GenerateTables", &InterpolationTableGenerator2D::GenerateTables);
 }

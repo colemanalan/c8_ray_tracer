@@ -1,9 +1,14 @@
 from c8_tracer import logging
 from c8_tracer import Plane
-from c8_tracer.c8_tracer_ext.tracer import RayTracer2D
+from c8_tracer.c8_tracer_ext.tracer import RayTracer2D, SolutionMethod
 from c8_tracer.c8_tracer_ext.tables import InterpolationTableGenerator2D
 from c8_tracer import Vec3
 from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
+
+"""
+Demonstrates how to use the interpolation table builder and to use the results
+from the table to quickly get solutions
+"""
 
 logging.logger.set_level(logging.LogLevel.INFO)
 
@@ -48,7 +53,14 @@ min_z = -300  # negative values cover locations below the antenna
 max_z = -antenna_pos.z - 1  # 1m below the reflection plane
 n_bins_z = 15
 tables = table_gen.GenerateTables(
-    min_r, max_r, n_bins_r, min_z, max_z, n_bins_z, antenna_pos
+    min_r,
+    max_r,
+    n_bins_r,
+    min_z,
+    max_z,
+    n_bins_z,
+    antenna_pos,
+    SolutionMethod.Brent,
 )
 
 for table in tables:

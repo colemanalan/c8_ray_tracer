@@ -4,11 +4,13 @@
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/brent.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
+#include "RayTracer.hpp"
 
-#define CLOSE_TOL 0.00001
-#define DCOS_TOL 1e-9
-#define INITAL_STEP_SIZE 0.1
-#define PLANE_CLOSE_TOL 0.000005
+#define STOP_CLOSE_LENGTH 0.000005 // max distance for stopping criteria in Brent Loops
+#define PLANE_CLOSE_TOL 1e-6       // max distance for finding intersections with planes
+#define DCOS_TOL 1e-8              // limit in cosine distance before quitting opt loops
+#define MAX_RAY_STEPS 10000        // max steps taken before quitting
+#define INITAL_STEP_SIZE 0.1       // fist step will always be this large
 
 namespace c8_tracer
 {
@@ -20,7 +22,19 @@ namespace c8_tracer
                                   LengthType const maxStep = 10.0,
                                   double const tolerance = 1e-8,
                                   int const brentRays = 13)
-      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays) {}
+      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays)
+  {
+    if (brentRays < 3)
+    {
+      TRACER_LOG_ERROR("Must use at least 3 Brent rays, gave" + str(brentRays));
+      throw std::runtime_error("Bad construction of RayTracer2D");
+    }
+    if (maxStep < minStep)
+    {
+      TRACER_LOG_ERROR("Step size must be ordered. Gave " + str(minStep) + " < " + str(maxStep));
+      throw std::runtime_error("Step size must be ordered");
+    }
+  }
 
   inline void RayTracer2D::AddReflectionLayer(Plane const layer)
   {
@@ -50,21 +64,23 @@ namespace c8_tracer
 
     if (_GetZ(end) > _GetZ(start))
     {
-      TRACER_LOG_DEBUG("Start " + str(start) + " is above end " + str(end) + ", flipping");
+      TRACER_LOG_DEBUG("Start " + str(start) + " is below end " + str(end) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
 
     // 4 iterations of 11 rays will find solutions that are at least separated by 0.000855
     auto const [foundEmit, foundReceive] = FindEmitAndReceiveBrent(start, end, env, nRays_, 4);
-
-    TRACER_LOG_INFO("Creatings paths for " + str(foundEmit.size()) + " solutions");
+    TRACER_LOG_INFO("Creating paths for " + str(foundEmit.size()) + " solutions");
 
     if (foundEmit.size())
     {
       for (uint i = 0; i < foundEmit.size(); i++)
       {
+        TRACER_LOG_DEBUG("Gettting path for x0 " + str(start) + " v0 " + str(foundEmit[i]));
         auto const path = GetSignalPath(start, foundEmit[i], end, env);
+        TRACER_LOG_DEBUG("Path end " + str(path.getEnd()) + " target end " + str(end));
+
         signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path) : path);
       }
 
@@ -91,48 +107,47 @@ namespace c8_tracer
     Point start = sourceXX;
     Point end = targetXX;
 
+    // don't want to start directly horizontal (will not propagate)
+    // bump the start slightly upward
+    if (abs(_GetZ(start) - _GetZ(end)) < DCOS_TOL)
+    {
+      start = start + axis_ * DCOS_TOL;
+    }
+
     if (_GetZ(end) > _GetZ(start))
     {
-      TRACER_LOG_DEBUG("(PropagateToPoint) Start " + str(start) + " is above end " + str(end) + ", flipping");
+      TRACER_LOG_DEBUG("End " + str(end) + " is above start " + str(start) + ", flipping");
       std::swap(start, end);
       flippedStartEnd = true;
     }
 
     // Seed with straight-line direction (for direct ray)
     DirectionVector seed1 = (end - start).normalized();
-    // don't want to start directly horizontal (will not propagate)
-    // bump the direction slightly upward
-    if (abs(_GetZ(seed1)) < 0.001)
-    {
-      seed1 = (seed1 + DirectionVector({0, 0, 0.01})).normalized();
-    }
-
     DirectionVector emit1 = seed1;    // initialize
     DirectionVector receive1 = seed1; // initialize
 
-    TRACER_LOG_INFO("(PropagateToPoint) Finding first solution with seed " + str(seed1));
+    TRACER_LOG_INFO("Finding first solution with seed " + str(seed1));
     bool const solution1Found =
         FindEmitAndReceive(start, end, env, seed1, emit1, receive1);
-    TRACER_LOG_INFO("(PropagateToPoint) Returned solution dir " + str(emit1));
+    TRACER_LOG_INFO("Returned solution dir " + str(emit1));
 
     // If this one failed, the next one is not worth calculating (shadow zone)
     if (!solution1Found)
     {
-      TRACER_LOG_WARNING("(PropagateToPoint) Direct solution finding failed, won't find second solution");
+      TRACER_LOG_WARNING("Direct solution finding failed, won't find second solution");
       return signalPaths;
     }
 
     auto const path1 = GetSignalPath(start, emit1, end, env);
     signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path1) : path1);
 
-    // Seed with weighted average of \hat{z} and the direct ray (for refracted)
-    auto const phi =
-        atan2(static_cast<double>(seed1.y), static_cast<double>(seed1.x));
+    auto const parallelComp = emit1 * _GetZ(emit1);
+    auto const perpDir = (emit1 - parallelComp).normalized();
 
     // in most cases, the other solution is close to the negative launch vector
-    double cosine = (abs(_GetZ(emit1)) + 0.99) * 0.25;
+    auto cosine = (parallelComp.norm() + 0.99) * 0.25;
     auto sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
-    auto seed2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
+    auto seed2 = axis_ * cosine + perpDir * sine;
 
     DirectionVector emit2 = seed2;
     DirectionVector receive2 = seed2;
@@ -153,7 +168,7 @@ namespace c8_tracer
       {
         cosine += dcos;
         sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
-        seed2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
+        seed2 = axis_ * cosine + perpDir * sine;
         solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
 
         if (abs(_GetZ(emit1) - _GetZ(emit2)) > 0.0001)
@@ -185,6 +200,13 @@ namespace c8_tracer
     Point target = targetInit;
     bool flippedStartEnd = false;
 
+    // don't want to start directly horizontal (will not propagate)
+    // bump the start slightly upward
+    if (abs(_GetZ(start) - _GetZ(target)) < DCOS_TOL)
+    {
+      start = start + axis_ * DCOS_TOL;
+    }
+
     if (_GetZ(target) > _GetZ(start))
     {
       TRACER_LOG_DEBUG("Flipping start/end positions. original start " +
@@ -210,16 +232,17 @@ namespace c8_tracer
     auto dist2D = [&](double cosine)
     {
       auto const startDir = makeDirVec(cosine);
-      ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
+      auto const success = ShootOneRayToMinimumZ(start, startDir, testPos, testDir, target, env);
 
-      // handle when the ray never comes back down.
-      if (_GetZ(testPos) > _GetZ(startDir))
+      // handle rays that never hit minimum z
+      if (!success)
       {
-        return Get2DRadialDistance(start, target, start);
+        TRACER_LOG_DEBUG("Failed ray from x0 " + str(start) + " startDir " + str(startDir) + " end at " + str(testPos));
+        return std::numeric_limits<LengthType>::infinity();
       }
 
       auto const dist = Get2DRadialDistance(start, target, testPos);
-      TRACER_LOG_TRACE("Testing cos = " + str(cosine) + " R_err = " + str(dist));
+      TRACER_LOG_TRACE("Result for cos = " + str(cosine) + " R_err = " + str(dist) + "  final pos " + str(testPos));
       return dist;
     };
 
@@ -231,6 +254,9 @@ namespace c8_tracer
     double cosMin = -1.0;
     double cosMax = 1.0;
     int nRays = nRaysInit;
+
+    // These rays cannot propagate since the medium is symmetric about the axis
+    cachedSamples[cosMin] = cachedSamples[cosMax] = Get2DRadialDistance(start, target, start);
 
     TRACER_LOG_INFO("Finding solution using " + std::to_string(nRays) + " rays");
 
@@ -246,6 +272,28 @@ namespace c8_tracer
         {
           cachedSamples[x_vals[isol]] = dist2D(x_vals[isol]);
         }
+      }
+
+      // Remove entries with infinity
+      x_vals.erase(
+          std::remove_if(x_vals.begin(), x_vals.end(),
+                         [&](double x)
+                         {
+                           auto it = cachedSamples.find(x);
+                           if (it != cachedSamples.end() && std::isinf(it->second))
+                           {
+                             TRACER_LOG_DEBUG("Bad initial value found, removing cos " + str(it->first) + " from list");
+                             cachedSamples.erase(it); // Remove from map
+                             return true;             // Mark for removal from vector
+                           }
+                           return false;
+                         }),
+          x_vals.end());
+
+      TRACER_LOG_INFO("Initial solutions");
+      for (const auto &x_val : x_vals)
+      {
+        TRACER_LOG_INFO("\tcos(th): " + str(x_val) + "   dR: " + str(cachedSamples[x_val]));
       }
 
       std::vector<DirectionVector> foundEmit;
@@ -272,10 +320,12 @@ namespace c8_tracer
         double f0 = cachedSamples[x0];
         double f1 = cachedSamples[x1];
 
-        if (f0 * f1 < 0.0 || std::abs(f0) < CLOSE_TOL || std::abs(f1) < CLOSE_TOL)
+        if (f0 * f1 <= 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
         {
-          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, CLOSE_TOL);
-          auto const emit = DirectionVector(std::sqrt(1.0 - cosine * cosine), 0.0, cosine);
+          TRACER_LOG_DEBUG("Using brent on cos0 " + str(x0) + " f0 " +
+                           str(f0) + " cos1 " + str(x1) + " f1 " + str(f1));
+          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
+          auto const emit = makeDirVec(cosine);
 
           foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
           foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
@@ -374,10 +424,14 @@ namespace c8_tracer
       dcos *= 0.01;
     }
 
-    uint nSteps = 0;
     auto fireRay = [&](DirectionVector const &dir)
     {
-      nSteps += ShootOneRayToMinimumZ(start, dir, testPos, testDir, end, env);
+      auto const success = ShootOneRayToMinimumZ(start, dir, testPos, testDir, end, env);
+      if (!success)
+      {
+        return Get2DRadialDistance(start, end, start) - 1.0;
+      }
+
       return Get2DRadialDistance(start, end, testPos);
     };
 
@@ -385,7 +439,18 @@ namespace c8_tracer
 
     // calculate metric for the seed
     dr1 = fireRay(v1);
-    // TRACER_LOG_TRACE("D1 --> start {}, end {}, testPos {}", start, end, testPos);
+    if (abs(dr1) < STOP_CLOSE_LENGTH) // in uniform medium will trip right away
+    {
+      emit = flippedStartEnd ? testDir * -1 : v1;
+      receive = flippedStartEnd ? v1 * -1 : testDir;
+      emit = emit.normalized();
+      receive = receive.normalized();
+
+      TRACER_LOG_DEBUG("FOUND SOLUTION within tol, v0 " + str(emit) +
+                       ", pos " + str(testPos) + ", abs 3D dist " +
+                       str((testPos - end).getNorm()));
+      return true;
+    }
 
     // set launch vector #2 as a slight perturbation to calculate derivatie
     auto cosine = _GetZ(v1) + dcos;
@@ -404,12 +469,6 @@ namespace c8_tracer
     v2 = DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
     dr2 = fireRay(v2);
     auto derivative = dcos / (dr1 - dr2);
-    // TRACER_LOG_TRACE("D2 --> start " + str(start) + ", end " + str(end) + ", testPos " + str(testPos));
-
-    // TRACER_LOG_TRACE("Start of propagate v1 {}, v2 {}, dr1 {}, dr2 {}", v1, v2, dr1,
-    //               dr2);
-    // TRACER_LOG_TRACE("Start of propagate derivative {}", derivative);
-    // TRACER_LOG_TRACE("Start cosine value will be {}", cosine + derivative * dr1);
 
     // variables for binary search
     auto closeNegCos = cosine;
@@ -464,7 +523,7 @@ namespace c8_tracer
       dr1 = fireRay(v1);
 
       // stop if close enough to boundary
-      if (abs(dr1) < CLOSE_TOL)
+      if (abs(dr1) < STOP_CLOSE_LENGTH)
       {
         emit = flippedStartEnd ? testDir * -1 : v1;
         receive = flippedStartEnd ? v1 * -1 : testDir;
@@ -529,8 +588,8 @@ namespace c8_tracer
         if (dr1 == dr2)
         {
           TRACER_LOG_TRACE("Found the same points, derivative inf, returning seed value");
-          v1 = seed;
-          break;
+          dcos *= -1.0; // probably hitting a clamp condition
+          continue;
         }
 
         // numerical derivative
@@ -556,7 +615,6 @@ namespace c8_tracer
     TRACER_LOG_TRACE("Could not find prop dir, v1 " + str(v1) + ", v2 " + str(v2) +
                      ", dr1 " + str(dr1) + ", dr2 " + str(dr2));
 
-    numericalDerivativeSteps_ += nSteps;
     emit = flippedStartEnd ? testDir * -1 : v1;
     receive = flippedStartEnd ? v1 * -1 : testDir;
     emit = emit.normalized();
@@ -568,149 +626,58 @@ namespace c8_tracer
 
     return false;
   }
+
   inline void RayTracer2D::FindIntersectionWithPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
+    auto const currentSteps = stepsTaken_;
+
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
+    constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
-    constexpr auto closeThreshold = PLANE_CLOSE_TOL; // defines when solution is found
-    constexpr uint kMaxInitSteps = 10;               // number of initial steps for bounding root
-    constexpr uint kMaxBinarySteps = 50;             // max steps to find solutions
-    constexpr auto epsilon = 1e-10;                  // tolerance for division
+    LengthType stepLength;
+    double avgN;
+    LengthType initStepSize = step;
+    auto const f0 = DistToPlane(plane, x0);
+    auto f1 = DistToPlane(plane, end);
 
-    // initializing values that will be passed by reference
-    double fracHigh = 1.0;
-    double fracMid = 0.0;
-    double fracLow = 0.0;
-    LengthType currentStepSize;
-
-    // lambda for calculating distance from the plane
-    auto computeDist = [&](Point const &pt)
+    uint initSteps = 0;
+    while (f0 * f1 > 0)
     {
-      return (pt - plane.getCenter()).dot(plane.getNormal());
+      if (initSteps >= kMaxInitSteps)
+      {
+        TRACER_LOG_ERROR("Failed to find bounds that surround plane! \nx0: " +
+                         str(x0) + " dist " + str(f0) +
+                         "\nend: " + str(end) + " dist " + str(f1) +
+                         "\nv0: " + str(v0) + " step size: " + str(step) +
+                         "\nplane center " + str(plane.getCenter()) + " normal " +
+                         str(plane.getNormal()));
+        throw std::runtime_error("Failed finding plane bounding points");
+      }
+
+      initSteps++;
+      initStepSize *= 2.0;
+      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN);
+      f1 = DistToPlane(plane, end);
+    }
+
+    LengthType const brentStep = initStepSize;
+    LengthType testStep = initStepSize;
+    // define stepping function to find the root of (scaling step size)
+    auto root = [&](double mult)
+    {
+      testStep = brentStep * mult;
+      TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN);
+      return DistToPlane(plane, end);
     };
 
-    // lambda for taking one step forward and bumping the counter
-    auto takeStep = [&](double frac)
-    {
-      currentStepSize = frac * step;
-      stepsTaken_++;
-      tracer_.AdaptiveStep(x0, v0, end, endDir, currentStepSize, env, false);
-    };
+    auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, PLANE_CLOSE_TOL);
+    testStep = brentStep * frac;
+    TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN); // take found step
 
-    auto distLow = computeDist(x0);
-    takeStep(fracHigh);
-    auto distHigh = computeDist(end);
-
-    uint counter = 0;
-
-    // Sanity check to ensure that the solution is bounded in the first place
-    // Take increasingly larger steps if need be
-    while (distLow * distHigh >= 0.0 * 0.0 && counter++ < kMaxInitSteps)
-    {
-      // CORSIKA_LOG_DEBUG(
-      //     "Failed not-bounded check\n x0 {}\n v0 {}\n fracLow {}"
-      //     "\n distLow {}\n fracHigh {}\n distHigh {}",
-      //     x0, v0, fracLow, distLow, fracHigh, distHigh);
-
-      fracHigh += 0.5;
-      takeStep(fracHigh);
-      distHigh = computeDist(end);
-    }
-
-    if (counter >= kMaxInitSteps)
-    { // Can happen where ray tracer gets stuck due to
-      // large jumps in n
-      // CORSIKA_LOG_WARN(
-      //     "Could not properly initialize binary search to find intersection with plane"
-      //     "step frac: {}, distance to plane: {}. Will use straight track approximation "
-      //     "to find intersection",
-      //     fracHigh, distHigh);
-      // CORSIKA_LOG_DEBUG(
-      //     "\nx0 {}\nv0 {}\nstep {}\nend {}\nendDir {}\nfracLow {}\n"
-      //     "distLow {}\n fracHigh {}\n distHigh {}",
-      //     x0, v0, step, end, endDir, fracLow, distLow, fracHigh, distHigh);
-
-      auto denom = endDir.dot(plane.getNormal());
-      if (abs(denom) > epsilon)
-      {
-        auto const t = (plane.getCenter() - end).dot(plane.getNormal()) / denom;
-        end = end + endDir * t;
-      }
-
-      return;
-    }
-
-    // set to a value in the middle
-    fracMid = 0.5 * fracHigh;
-    counter = 0;
-
-    // Begin binary search
-    while (counter++ < kMaxBinarySteps)
-    {
-      binarySearchReflection_++;
-      takeStep(fracMid);
-      auto distMid = computeDist(end);
-
-      if (abs(distLow) < closeThreshold)
-      {
-        TRACER_LOG_TRACE("Finishing at low point! " + str(distLow));
-        takeStep(fracLow);
-        break;
-      }
-      else if (abs(distMid) < closeThreshold)
-      {
-        TRACER_LOG_TRACE("Finishing at mid point! " + str(distMid));
-        takeStep(fracMid);
-        break;
-      }
-      else if (abs(distHigh) < closeThreshold)
-      {
-        TRACER_LOG_TRACE("Finishing at high point! " + str(distHigh));
-        takeStep(fracHigh);
-        break;
-      }
-
-      // CORSIKA_LOG_DEBUG("Low: {}, Med: {}, High: {}", distLow, distMid, distHigh);
-
-      if (distLow * distMid < 0.0 * 0.0)
-      {
-        TRACER_LOG_ALL("Point is btw low/mid " + str(distLow * distMid));
-        auto delta = distLow - distMid;
-        fracHigh = fracMid;
-        distHigh = distMid;
-        fracMid = (abs(delta) > epsilon * 1.0f)
-                      ? (distLow * fracMid - distMid * fracLow) / delta
-                      : 0.5 * (fracLow + fracMid);
-      }
-      else if (distHigh * distMid < 0.0 * 0.0)
-      {
-        TRACER_LOG_ALL("Point is btw mid/high " + str(distHigh * distMid));
-        auto delta = distMid - distHigh;
-        fracLow = fracMid;
-        distLow = distMid;
-        fracMid = (abs(delta) > epsilon * 1.0f)
-                      ? (distMid * fracHigh - distHigh * fracMid) / delta
-                      : 0.5 * (fracMid + fracHigh);
-      }
-      else
-      {
-        // happens when you exactly hit the plane
-        TRACER_LOG_ALL("Finishing at mid point! " + str(distMid));
-        takeStep(fracMid);
-        break;
-      }
-
-    } // End while loop
-
-    if (counter >= kMaxBinarySteps)
-    {
-      // CORSIKA_LOG_DEBUG(
-      //     "Could not find reflection after {} steps, deviation {}, tolerance {}", counter,
-      // computeDist(end), closeThreshold);
-    }
+    planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
 
   inline std::tuple<double, double> RayTracer2D::TransmitThroughPlane(
@@ -735,8 +702,8 @@ namespace c8_tracer
     auto const sineSquareTheta1 = 1.0 - cosineTheta1 * cosineTheta1;
 
     // init variables
-    double transmitSComp = 1.0;
-    double transmitPComp = 1.0;
+    double transmitSComp = 0.0;
+    double transmitPComp = 0.0;
 
     // check total-intertal-reflection case
     auto const ratio = n1 / n2;
@@ -749,22 +716,26 @@ namespace c8_tracer
                       (n1 * cosineTheta1 + n2 * cosineTheta2);
       transmitPComp = 2 * n1 * cosineTheta1 /
                       (n2 * cosineTheta1 + n1 * cosineTheta2);
-    }
 
-    auto const vv = v0.normalized();
-    endDir = vv - plane.getNormal() * vv.dot(plane.getNormal()) +
-             plane.getNormal() * std::sqrt(n2 * n2 - n1 * n1 + pow(vv.dot(plane.getNormal()), 2.0));
-    endDir = endDir.normalized();
-    TRACER_LOG_ALL("After Snell's Law dir changed from " + str(vv) + " to " + str(endDir));
+      auto const v_perp = plane.getNormal() * v0.dot(plane.getNormal());
+      auto const v_parallel = v0 - v_perp;
+
+      endDir = v_perp.normalized() * cosineTheta2 + v_parallel.normalized() * sqrt(sineSquareTheta2);
+      TRACER_LOG_ALL("After Snell's Law dir changed from " + str(v0) + " to " + str(endDir));
+    }
+    else
+    {
+      auto const v_parallel = v0 - plane.getNormal() * v0.dot(plane.getNormal());
+      endDir = v_parallel.normalized();
+    }
 
     // Want to ensure that we are on the correct side of the plane after reflection
     // Ensure this is the case by forcing it to the other side
     auto const dist = DistToPlane(plane, end);
-    if (dist * DistToPlane(plane, x0) > 0.0)
+    if (dist * DistToPlane(plane, x0) >= 0.0)
     { // wrong side of plane
-      // CORSIKA_LOG_DEBUG("On the wrong side, current: {}, dir: {}", end, endDir);
       TRACER_LOG_ALL("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
-      end = end - endDir.normalized() * dist * 1.001 / endDir.normalized().dot(plane.getNormal());
+      end = end + endDir.normalized() * std::max(dist * 1.001, PLANE_CLOSE_TOL);
       TRACER_LOG_ALL("After correction " + str(end));
     }
 
@@ -824,252 +795,84 @@ namespace c8_tracer
 
     // Want to ensure that we are on the correct side of the plane after reflection
     // Ensure this is the case by forcing it to the other side
-    auto distanceFromPlane = (end - plane.getCenter()).dot(plane.getNormal());
-    if (distanceFromPlane < 0.0)
+    auto const dist = DistToPlane(plane, end);
+    if (dist * DistToPlane(plane, x0) <= 0.0)
     { // wrong side of plane
-      // CORSIKA_LOG_DEBUG("On the wrong side, current: {}, dir: {}", end, endDir);
-      end = end - endDir.normalized() * distanceFromPlane * 1.001 / endDir.normalized().dot(plane.getNormal());
+      TRACER_LOG_TRACE("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
+      auto const v_perp = plane.getNormal().dot(endDir.normalized());
+      auto const t = abs(dist) / v_perp;
+      TRACER_LOG_ALL("Adding " + str(endDir.normalized() * t * 1.001));
+      end = end + endDir.normalized() * t * 1.001;
     }
 
     TRACER_LOG_TRACE("New direction xf " + str(end) + " vf: " + str(endDir));
     return {reflectSComp, reflectPComp};
   }
 
-  void RayTracer2D::FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
-                               DirectionVector &endDir, LengthTypeSq const rMaxSq,
-                               LengthType const step, EnvironmentBase const &env)
-  {
-    auto fracHigh = 2.0; // Extend a bit beyond for numerical precision safety
-    auto fracMid = 1.0;
-    auto fracLow = 0.0;
-
-    LengthType testStep; // Need this to pass by reference
-
-    testStep = fracLow * step;
-    stepsTaken_++;
-    tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-    auto distLow = rMaxSq - Get2DProjection(x0, end).getSquaredNorm();
-
-    testStep = fracHigh * step;
-    stepsTaken_++;
-    tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-    auto distHigh = rMaxSq - Get2DProjection(x0, end).getSquaredNorm();
-
-    // Begin binary search
-    while (true)
-    {
-      binarySearchBoundary_++;
-
-      // only ever need to calculate the mid point
-      testStep = fracMid * step;
-      stepsTaken_++;
-      tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-      auto distMid = rMaxSq - Get2DProjection(x0, end).getSquaredNorm();
-
-      // CORSIKA_LOG_TRACE("Low: {}, Med: {}, High: {}", distLow, distMid, distHigh);
-
-      if (distHigh * distMid < 0.0 * 0.0 * 0.0 * 0.0)
-      { // between mid and high
-        // CORSIKA_LOG_TRACE("Point is btw mid/high {}", distHigh * distMid);
-
-        // check stopping criteria
-        if (abs(distHigh) < 0.001f * 0.001f)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at high point! {}", distHigh);
-          testStep = fracHigh * step;
-          stepsTaken_++;
-          tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-        else if (abs(distMid) < 0.001f * 0.001f)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at mid point! {}", distMid);
-          testStep = fracMid * step;
-          stepsTaken_++;
-          tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-
-        // update mid and low points using linear interpolation
-        auto const temp = fracMid;
-        fracMid = (distMid * fracHigh - distHigh * fracMid) / (distMid - distHigh);
-        fracMid = 0.5 * (fracHigh + fracMid);
-        fracLow = temp;
-        distLow = distMid;
-        // CORSIKA_LOG_TRACE("New limits will be low {} mid {} high {}", fracLow, fracMid,
-        // fracHigh);
-      }
-      else if (distLow * distMid < 0.0 * 0.0 * 0.0 * 0.0)
-      { // between low and mid
-        // CORSIKA_LOG_TRACE("Point is btw low/mid {}", distLow * distMid);
-
-        // check stopping criteria
-        if (abs(distLow) < 0.0001 * 0.0001)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at low point! {}", distLow);
-          testStep = fracLow * step;
-          stepsTaken_++;
-          tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-        else if (abs(distMid) < 0.0001 * 0.0001)
-        {
-          // CORSIKA_LOG_TRACE("Finishing at mid point! {}", distMid);
-          testStep = fracMid * step;
-          stepsTaken_++;
-          tracer_.AdaptiveStep(x0, v0, end, endDir, testStep, env, false);
-          break;
-        }
-
-        // update high and mid points using linear interpolation
-        auto const temp = fracMid;
-        fracMid = (distLow * fracMid - distMid * fracLow) / (distLow - distMid);
-        fracHigh = temp;
-        distHigh = distMid;
-        // CORSIKA_LOG_TRACE("New limits will be low {} mid {} high {}", fracLow, fracMid,
-        // fracHigh);
-      }
-      else
-      {
-        // shouldn't ever happen, but here for safety
-        // CORSIKA_LOG_DEBUG("Point is no longer bounded in binary search!");
-        // CORSIKA_LOG_DEBUG("Low h={} d={}, Mid h={} d={}, High h={} d={},", fracLow * step,
-        // distLow, fracMid * step, distMid, fracHigh * step, distHigh);
-        assert(false);
-        break;
-      }
-    } // End while loop
-  }
-
-  inline uint RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
+  inline bool RayTracer2D::ShootOneRayToMinimumZ(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
                                                  Point const &target,
                                                  EnvironmentBase const &env)
   {
+    auto const minimumPlane = Plane(target, axis_);
 
-    raysPropagated_++;
-
-    // Initialize state
-    Point x0 = end = start;
-    DirectionVector v0 = endDir = startDir;
-
-    auto const minimumPlane =
-        Plane(target, DirectionVector({0, 0, 1}));
-
-    LengthType stepSize = INITAL_STEP_SIZE;
-    LengthType prevStep = stepSize;
-
-    TRACER_LOG_TRACE("x0 " + str(start) + ", v0 " + str(startDir) + ", target " + str(target));
-
-    uint constexpr maxSteps = 10000;
-    uint istep = 0;
-
-    while (DistToPlane(minimumPlane, end) > 0.0) // Stop when you passed the antennas
+    auto distFunc = [&](Point const &x)
     {
-      x0 = end;
-      v0 = endDir;
-      prevStep = stepSize;
+      return DistToPlane(minimumPlane, x);
+    };
 
-      tracer_.AdaptiveStep(x0, v0, end, endDir, stepSize, env);
-      istep++;
-
-      // check for plane crossings
-      for (auto const &plane : reflectionLayers_)
+    auto const startDist = distFunc(start);
+    auto useStart = start;
+    if (startDist < 0)
+    {
+      TRACER_LOG_WARNING("Starting shot from below the target Z! " + str(start) + " < " + str(target));
+      end = start;
+      endDir = startDir;
+      return false;
+    }
+    else if (startDist == 0)
+    {
+      if (_GetZ(startDir) < 0)
       {
-        auto const signFinal = DistToPlane(plane, end);
-        if (signFinal * DistToPlane(plane, x0) < 0.0) // step crosses the plane
-        {
-          if (signFinal * DistToPlane(plane, target) < 0.0)
-          {
-            stepSize = prevStep;
-            TRACER_LOG_TRACE("Entered reflection loop between " +
-                             str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
-          }
-          else
-          {
-            TRACER_LOG_TRACE("Entered transmission loop between " +
-                             str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
-          }
-        }
+        TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
+                         " and pointed downwards " + str(startDir) + " failing");
+        end = start;
+        endDir = startDir;
+        return true;
       }
-
-      if (istep == maxSteps)
-      {
-        TRACER_LOG_DEBUG("max steps have been used, stopping");
-        break;
-      }
+      useStart = start + axis_ * PLANE_CLOSE_TOL / 2.0;
+      TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
+                       " adjusting start pos to: " + str(useStart));
     }
 
-    // Find the crossing point
-    if (maxSteps > istep)
-    {
-      TRACER_LOG_TRACE("Below minimum z-plane, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
-      FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
-    }
+    SignalPath const sigPath = ShootOneRay(useStart, startDir, target, env, distFunc, false, MAX_RAY_STEPS);
 
-    endDir = endDir.normalized();
-    return istep;
+    end = sigPath.getEnd();
+    endDir = sigPath.receive_;
+
+    TRACER_LOG_TRACE("Dist is " + str(abs(distFunc(end))) + " tol is " + str(PLANE_CLOSE_TOL));
+    return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
   }
 
-  inline uint RayTracer2D::ShootOneRayToMaximumR(Point const &start,
+  inline bool RayTracer2D::ShootOneRayToMaximumR(Point const &start,
                                                  DirectionVector const &startDir,
                                                  Point &end, DirectionVector &endDir,
-                                                 LengthTypeSq const rMaxSq,
+                                                 Point const &target,
                                                  EnvironmentBase const &env)
   {
-
-    raysPropagated_++;
-
-    // set up some variables
-    auto x0 = end = start;
-    auto v0 = endDir = startDir;
-
-    LengthType stepSize = INITAL_STEP_SIZE; // This will be updated to keep good tolerance
-
-    // CORSIKA_LOG_DEBUG("Shooting ray, x0 {}, v0 {}, r2 {}", start, startDir, rMaxSq);
-
-    uint const maxSteps = 10000;
-    uint istep = 0;
-    while (Get2DProjection(start, end).getSquaredNorm() < rMaxSq) // Stop when you passed the antennas
+    auto distFunc = [&](Point const &x)
     {
-      x0 = end;
-      v0 = endDir;
-      tracer_.AdaptiveStep(x0, v0, end, endDir, stepSize, env);
+      return Get2DRadialDistance(start, target, x);
+    };
 
-      istep++;
+    SignalPath const sigPath = ShootOneRay(start, startDir, target, env, distFunc, false, MAX_RAY_STEPS);
 
-      // check for plane crossings
-      for (auto const &plane : reflectionLayers_)
-      {
-        if ((end - plane.getCenter()).dot(plane.getNormal()) < 0.0)
-        {
-          // CORSIKA_LOG_DEBUG("Entered reflection loop between {} and {}, step size {}", x0,
-          //                   end, stepSize);
-          ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
-        }
-      }
+    end = sigPath.getEnd();
+    endDir = sigPath.receive_;
 
-      if (istep == maxSteps)
-      {
-        // CORSIKA_LOG_DEBUG("{} steps have been used, stopping, dir {}", istep, startDir);
-        break;
-      }
-    }
-
-    // Take one last partial step to get close to the propagation limit
-    if (maxSteps > istep)
-    {
-      auto dr = sqrt(rMaxSq) - sqrt(Get2DProjection(start, x0).getSquaredNorm());
-      FindRadius(x0, v0, end, endDir, dr * dr, stepSize, env);
-    }
-
-    endDir = endDir.normalized();
-
-    return istep;
+    return abs(distFunc(end)) < 2 * PLANE_CLOSE_TOL;
+    ;
   }
 
   inline SignalPath RayTracer2D::GetSignalPath(Point const &start,
@@ -1077,109 +880,36 @@ namespace c8_tracer
                                                Point const &target,
                                                EnvironmentBase const &env)
   {
-
-    Path path(start);
-    TRACER_LOG_DEBUG("Making signal path using emit: " + str(startDir) + " from " + str(start) + " to " + str(target));
-
-    auto const targetZ = _GetZ(target);
-
-    // set up some variables
-    auto x0 = start;
-    auto end = start;
-    auto v0 = startDir;
-
-    auto const normStartDir = startDir.normalized();
-    DirectionVector endDir = normStartDir;
-
     auto const minimumPlane =
-        Plane(target, DirectionVector({0, 0, 1}));
+        Plane(target, axis_);
 
-    if (DistToPlane(minimumPlane, end) < 0.0)
+    auto distFunc = [&](Point const &x)
     {
-      TRACER_LOG_WARNING("Asking to propagate with an initial position below the target");
-    }
-
-    LengthType constexpr initialStepSize = INITAL_STEP_SIZE;
-    LengthType stepSize = initialStepSize; // This will be updated to keep good tolerance
-
-    LengthType weightedIndexOfRefraction = 0.0;
-    auto propLength = 0.0;
-
-    double fresnelS = 1.0;
-    double fresnelP = 1.0;
-
-    uint constexpr maxSteps = 500000;
-    uint istep = 0;
-
-    auto accumulateSegment = [&](Point const &a, Point const &b)
-    {
-      auto const diff = b - a;
-      auto const dist = diff.getNorm();
-      auto const avgPos = a + diff * 0.5;
-      auto const n = env.get_n(avgPos);
-      weightedIndexOfRefraction += n * dist;
-      propLength += dist;
+      return DistToPlane(minimumPlane, x);
     };
 
-    TRACER_LOG_DEBUG("Going from " + str(_GetZ(end)) + " to " + str(targetZ));
+    auto useStart = start;
+    auto distStart = distFunc(useStart);
 
-    while (DistToPlane(minimumPlane, end) > 0.0 && istep < maxSteps)
+    if (distStart < 0.0)
     {
-      if (istep > 0)
+      TRACER_LOG_WARNING("Asking for path that starts at " + str(start) +
+                         " which is below target " + str(target));
+    }
+    else if (distStart == 0)
+    {
+      if (_GetZ(startDir) >= 0) // equal catches prop for uniform medium
       {
-        path.addToEnd(end);
-        accumulateSegment(x0, end);
+        useStart = start + axis_ * PLANE_CLOSE_TOL / 2.0;
+        TRACER_LOG_TRACE("Adjusting start pos to: " + str(useStart));
       }
-
-      x0 = end;
-      v0 = endDir;
-
-      tracer_.AdaptiveStep(x0, v0, end, endDir, stepSize, env);
-      ++istep;
-
-      for (auto const &plane : reflectionLayers_)
+      else
       {
-        auto const signFinal = DistToPlane(plane, end);
-        if (signFinal * DistToPlane(plane, x0) < 0.0) // step crosses the plane
-        {
-
-          if (signFinal * DistToPlane(plane, target) < 0.0)
-          {
-            auto [tempS, tempP] =
-                ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
-            fresnelS *= tempS;
-            fresnelP *= tempP;
-          }
-          else
-          {
-            auto [tempS, tempP] =
-                TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
-            fresnelS *= tempS;
-            fresnelP *= tempP;
-          }
-        }
+        TRACER_LOG_TRACE("Starting exactly at the boundary and going downward");
       }
     }
 
-    TRACER_LOG_DEBUG("Finding final intersection with plane using x0:" + str(x0) + ", v0: " + str(v0));
-    // Final intersection if not capped
-    if (maxSteps > istep)
-    {
-      auto const minimumPlane = Plane(target, DirectionVector({0, 0, 1}));
-      FindIntersectionWithPlane(x0, v0, end, endDir, minimumPlane, stepSize, env);
-    }
-
-    path.addToEnd(end);
-    accumulateSegment(x0, end);
-
-    auto const avgIndex = weightedIndexOfRefraction / propLength;
-    auto const propTime = weightedIndexOfRefraction / constants::c;
-
-    auto const n0 = env.get_n(start);
-    auto const nf = env.get_n(end);
-
-    return SignalPath(propTime, avgIndex, n0, nf, normStartDir, endDir.normalized(),
-                      propLength, path, fresnelS, fresnelP);
+    return ShootOneRay(useStart, startDir, target, env, distFunc, true, MAX_RAY_STEPS);
   }
 
   inline Vec3 RayTracer2D::Get2DProjection(Point const &x0, Point const &xf)
@@ -1197,11 +927,10 @@ namespace c8_tracer
 
   inline void RayTracer2D::PrintProfiling()
   {
-    TRACER_LOG_INFO("  Steps to find correct ray path " + std::to_string(numericalDerivativeSteps_));
-    TRACER_LOG_INFO("           Total rays propagated " + std::to_string(raysPropagated_));
-    TRACER_LOG_INFO("               Total steps taken " + std::to_string(stepsTaken_));
-    TRACER_LOG_INFO("Steps finding reflection surface " + std::to_string(binarySearchReflection_));
-    TRACER_LOG_INFO("    Steps finding stopping point " + std::to_string(binarySearchBoundary_));
+    LOG_INFO("               Total steps taken: " + std::to_string(stepsTaken_));
+    LOG_INFO("  Steps to find correct ray path: " + std::to_string(numericalDerivativeSteps_));
+    LOG_INFO("Steps finding reflection surface: " + std::to_string(planeIntersectionSteps_));
+    LOG_INFO("           Total rays propagated: " + std::to_string(raysPropagated_));
   }
 
   inline void RayTracer2D::ResetProfiling()
@@ -1209,8 +938,165 @@ namespace c8_tracer
     numericalDerivativeSteps_ = 0;
     raysPropagated_ = 0;
     stepsTaken_ = 0;
-    binarySearchReflection_ = 0;
-    binarySearchBoundary_ = 0;
+    planeIntersectionSteps_ = 0;
+  }
+
+  inline SignalPath RayTracer2D::ShootOneRay(
+      Point const &start,
+      DirectionVector const &startDir,
+      Point const &target,
+      EnvironmentBase const &env,
+      std::function<LengthType(Point const &)> distMethod,
+      bool const recordPath,
+      uint const maxSteps)
+  {
+    raysPropagated_++;
+
+    TRACER_LOG_TRACE("x0 " + str(start) + ", v0 " + str(startDir) + ", target " + str(target));
+
+    Path path(start);
+
+    // set of stepping variables
+    Point x0 = start;
+    Point end = start;
+    DirectionVector v0 = startDir;
+    DirectionVector endDir = startDir;
+    double fresnelS = 1.0;
+    double fresnelP = 1.0;
+
+    LengthType stepSize = INITAL_STEP_SIZE;
+    LengthType stepLength = 0.0;
+    double avgN = 0.0;
+
+    // Accumulated quantities
+    LengthType propLength = 0.0;
+    LengthType weightedIndexOfRefraction = 0.0;
+
+    uint istep = 0;
+
+    // march forward until we bracket root or hit maxSteps
+    while (distMethod(end) * distMethod(x0) >= 0.0 && istep < maxSteps)
+    {
+      // advance one step
+      x0 = end;
+      v0 = endDir;
+      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, stepLength, avgN, true);
+
+      // handle plane crossings
+      for (auto const &plane : reflectionLayers_)
+      {
+        double s0 = DistToPlane(plane, x0);
+        double s1 = DistToPlane(plane, end);
+
+        if (s0 * s1 < 0.0) // crossed plane
+        {
+          if (DistToPlane(plane, target) * s1 < 0.0)
+          {
+            TRACER_LOG_TRACE("Entered reflection loop between " +
+                             str(x0) + " and " + str(end) + ", step size " + str(stepSize));
+            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
+            fresnelS *= tempS;
+            fresnelP *= tempP;
+          }
+          else
+          {
+            TRACER_LOG_TRACE("Entered transmission loop between " +
+                             str(x0) + " and " + str(end) + ", step size " + str(stepSize));
+            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
+            fresnelS *= tempS;
+            fresnelP *= tempP;
+          }
+        }
+      }
+
+      // accumulate this step
+      weightedIndexOfRefraction += avgN * stepLength;
+      propLength += stepLength;
+
+      if (recordPath)
+        path.addToEnd(end);
+
+      istep++;
+    }
+
+    // if bracketed the root, refine last step
+    if (distMethod(end) * distMethod(x0) <= 0.0)
+    {
+      // the last accumulated segment will be an overshoot, so remove it
+      if (recordPath)
+      {
+        path.removeFromEnd();
+      }
+      weightedIndexOfRefraction -= avgN * stepLength;
+      propLength -= stepLength;
+
+      Point x0_root = x0;
+      DirectionVector v0_root = v0;
+
+      // define the root function to give to Brent Method
+      auto root = [&](double mult)
+      {
+        Point e = x0_root;
+        DirectionVector d = v0_root;
+        double h = stepSize * mult;
+        double L = 0.0;
+        double n = 0.0;
+
+        TakeAdaptiveStep(x0_root, v0_root, e, d, h, env, L, n, false);
+        return distMethod(e);
+      };
+
+      double f0 = distMethod(x0);
+      double f1 = distMethod(end);
+
+      double frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
+      TRACER_LOG_TRACE("After final path check, x0: " + str(x0) +
+                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+
+      // Take the refined final step (this one is physical)
+      double finalStep = stepSize * frac;
+      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(finalStep));
+      TakeAdaptiveStep(x0, v0, end, endDir, finalStep, env, stepLength, avgN, false);
+
+      weightedIndexOfRefraction += avgN * stepLength;
+      propLength += stepLength;
+    }
+    else
+    {
+      TRACER_LOG_TRACE("Solution is not bracketed! nSteps " + str(istep) + ", max steps " + str(maxSteps));
+    }
+
+    TRACER_LOG_TRACE("Final values, x0: " + str(x0) +
+                     ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
+    path.addToEnd(end); // always add the last step
+
+    // calculate the accumulated statistics
+    auto avgIndex = weightedIndexOfRefraction / propLength;
+    auto propTime = weightedIndexOfRefraction / constants::c;
+    auto n0 = env.get_n(start);
+    auto nf = env.get_n(end);
+
+    return SignalPath(propTime, avgIndex, n0, nf,
+                      startDir.normalized(), endDir.normalized(),
+                      propLength, path, fresnelS, fresnelP);
+  }
+
+  inline void RayTracer2D::TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
+                                            Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                                            LengthType &stepLength, double &avgN,
+                                            bool updateStep)
+  {
+    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, stepLength, avgN, updateStep);
+    stepsTaken_++;
+  }
+
+  inline void RayTracer2D::TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
+                                         Vec3 &endDir, double &h0, EnvironmentBase const &env,
+                                         double &stepLength, double &avgN)
+  {
+    Vec3 posErr(0, 0, 0);
+    tracer_.Step(startPos, startDir, endPos, endDir, posErr, h0, env, stepLength, avgN);
+    stepsTaken_++;
   }
 
 } // namespace c8_tracer

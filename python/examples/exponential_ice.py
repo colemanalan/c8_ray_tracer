@@ -8,7 +8,13 @@ from c8_tracer import Vec3
 from c8_tracer.c8_tracer_ext.environment import CartesianSingleExponentialEnvironment
 from c8_tracer.c8_tracer_ext.path import SignalPath
 
+"""
+This uses the c8_tracer functions/classes to construct and exponential refractive
+index profile and propagates rays to find both solutions between two points.
+"""
+
 logging.logger.set_level(logging.LogLevel.INFO)
+logging.logger_tracer.set_level(logging.LogLevel.INFO)
 
 # set up the exponential profile
 # n(z) = n_deep - delta_n * exp((z - z0) / length_scale)
@@ -41,8 +47,7 @@ ray_tracer.AddReflectionLayer(plane)
 # propagate from start to finish
 start = Vec3(0, 0, -50)
 end = Vec3(300, 0, -200.0)
-paths: list[SignalPath] = ray_tracer.PropagateToPoint(start, end, env)
-# paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
+paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
 
 for path in paths:
     dist = (path.getEnd() - end).norm()
