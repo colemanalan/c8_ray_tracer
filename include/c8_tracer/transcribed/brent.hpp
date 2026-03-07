@@ -1,20 +1,14 @@
-#include <iostream>
-#include <functional>
-#include <stdexcept>
-#include <cmath>
-#include <algorithm>
-
-#include "c8_tracer/transcribed/c8_typedefs.hpp"
-#include "c8_tracer/logger.hpp"
-
 namespace c8_tracer
 {
+  template <typename Func>
   double BrentMethod(
-      std::function<LengthType(double)> func, double a, double b,
-      LengthType faInit, LengthType fbInit, double tol = 1e-6,
-      int max_iter = 100)
+      Func func, double a, double b,
+      LengthType faInit, LengthType fbInit,
+      double tol = 1e-6, int max_iter = 100)
   {
-    LengthType fa = faInit, fb = fbInit;
+    LengthType fa = faInit;
+    LengthType fb = fbInit;
+
     if (fa * fb > 0.0)
     {
       TRACER_LOG_ERROR("Root not bracketed in initial call " +
@@ -24,15 +18,16 @@ namespace c8_tracer
                                   std::to_string(fa) + " " + std::to_string(fb));
     }
 
+    // Ensure |fa| >= |fb|
     if (std::abs(fa) < std::abs(fb))
     {
       std::swap(a, b);
       std::swap(fa, fb);
     }
 
-    LengthType fc = fa;
     double c = a;
-    double e = b - a;
+    LengthType fc = fa;
+    double prev_step = b - a;
 
     for (int iter = 0; iter < max_iter; ++iter)
     {
@@ -40,34 +35,39 @@ namespace c8_tracer
         return b;
 
       double s;
+
+      // inverse quadratic interpolation, if possible
       if (fa != fc && fb != fc)
       {
-        // Inverse quadratic interpolation
-        s = (a * fb * fc) / ((fa - fb) * (fa - fc)) + (b * fa * fc) / ((fb - fa) * (fb - fc)) + (c * fa * fb) / ((fc - fa) * (fc - fb));
+        s = (a * fb * fc) / ((fa - fb) * (fa - fc)) +
+            (b * fa * fc) / ((fb - fa) * (fb - fc)) +
+            (c * fa * fb) / ((fc - fa) * (fc - fb));
       }
       else
       {
-        // Secant method
+        // secant fallback
         s = b - fb * (b - a) / (fb - fa);
       }
 
-      // Conditions to accept s or fall back to bisection
-      bool cond1 = !(std::min(a, b) < s && s < std::max(a, b));
-      bool cond2 = std::abs(s - b) > std::abs(e) / 2.0;
-      bool cond3 = std::abs(e) < tol;
-      bool cond4 = std::abs(fb) > std::abs(fc);
+      // conditions to reject interpolation and use bisection
+      bool s_outside = (s <= std::min(a, b)) || (s >= std::max(a, b));
+      bool too_far = std::abs(s - b) > std::abs(prev_step) / 2.0;
+      bool small_step = std::abs(prev_step) < tol;
+      bool f_increasing = std::abs(fb) > std::abs(fc);
 
-      if (cond1 || cond2 || cond3 || cond4)
+      if (s_outside || too_far || small_step || f_increasing)
       {
-        s = (a + b) / 2.0;
-        e = b - a;
+        s = (a + b) * 0.5;
+        prev_step = b - a;
       }
       else
       {
-        e = b - s;
+        prev_step = b - s;
       }
 
       LengthType fs = func(s);
+
+      // Shift c → b, b → s
       c = b;
       fc = fb;
 
@@ -82,6 +82,7 @@ namespace c8_tracer
         fa = fs;
       }
 
+      // Ensure |fa| >= |fb|
       if (std::abs(fa) < std::abs(fb))
       {
         std::swap(a, b);
@@ -89,9 +90,7 @@ namespace c8_tracer
       }
 
       if (std::abs(b - a) < tol)
-      {
         return b;
-      }
     }
 
     return b;
