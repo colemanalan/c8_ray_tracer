@@ -580,7 +580,7 @@ namespace c8_tracer
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
     constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
-    LengthType stepLength;
+    LengthType pathLength;
     double avgN;
     LengthType initStepSize = step;
     auto const f0 = DistToPlane(plane, x0);
@@ -602,7 +602,7 @@ namespace c8_tracer
 
       initSteps++;
       initStepSize *= 2.0;
-      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN);
+      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, pathLength, avgN);
       f1 = DistToPlane(plane, end);
     }
 
@@ -612,13 +612,13 @@ namespace c8_tracer
     auto root = [&](double mult)
     {
       testStep = brentStep * mult;
-      TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN);
+      TakeFixedStep(x0, v0, end, endDir, testStep, env, pathLength, avgN);
       return DistToPlane(plane, end);
     };
 
     auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, PLANE_CLOSE_TOL);
     testStep = brentStep * frac;
-    TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN); // take found step
+    TakeFixedStep(x0, v0, end, endDir, testStep, env, pathLength, avgN); // take found step
 
     planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
