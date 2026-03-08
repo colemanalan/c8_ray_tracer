@@ -1,10 +1,10 @@
 #pragma once
 
 #include "c8_tracer/logger.hpp"
-#include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/brent.hpp"
-#include "c8_tracer/transcribed/RayTracer.hpp"
+#include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/CosineScanner.hpp"
+#include "c8_tracer/transcribed/RayTracer.hpp"
 #include "RayTracer.hpp"
 
 #define STOP_CLOSE_LENGTH 0.000005 // max distance for stopping criteria in Brent Loops
