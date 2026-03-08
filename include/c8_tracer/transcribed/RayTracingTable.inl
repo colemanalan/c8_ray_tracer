@@ -93,12 +93,13 @@ namespace c8_tracer
   inline void RayTracingTable::ResetTables()
   {
     size_t N = nRBins_ * nZBins_;
-    std::fill_n(launch_.get(), N, 0.0);
-    std::fill_n(receive_.get(), N, 0.0);
-    std::fill_n(length_.get(), N, 0.0);
-    std::fill_n(duration_.get(), N, 0.0);
-    std::fill_n(fresnelS_.get(), N, 1.0);
-    std::fill_n(fresnelP_.get(), N, 1.0);
+
+    FillWithNaN_(launch_, N);
+    FillWithNaN_(receive_, N);
+    FillWithNaN_(length_, N);
+    FillWithNaN_(duration_, N);
+    FillWithNaN_(fresnelS_, N);
+    FillWithNaN_(fresnelP_, N);
 
     totalCalls_ = 0;
     untrackedCalls_ = 0;
@@ -244,6 +245,13 @@ namespace c8_tracer
     auto const [r, z] = GetRAndZ_(x0);
     auto const [ir, iz] = GetIrIz(r, z);
     auto const length = InterpolateFromIndex_(length_.get(), r, z, ir, iz);
+    if (std::isnan(length))
+    {
+      return SignalPath(std::numeric_limits<double>::infinity(), 1.0, n0, nf,
+                        plane_.getNormal(), plane_.getNormal(),
+                        std::numeric_limits<double>::infinity(), Path(x0), 1.0,
+                        1.0);
+    }
     auto const duration = InterpolateFromIndex_(duration_.get(), r, z, ir, iz);
     auto const fresnelS = InterpolateFromIndex_(fresnelS_.get(), r, z, ir, iz);
     auto const fresnelP = InterpolateFromIndex_(fresnelP_.get(), r, z, ir, iz);
@@ -340,6 +348,12 @@ namespace c8_tracer
     T const v10 = table[base + nRBins_];
     T const v11 = table[base + nRBins_ + 1];
 
+    if (std::isnan(v00) || std::isnan(v01) ||
+        std::isnan(v10) || std::isnan(v11))
+    {
+      return std::numeric_limits<T>::quiet_NaN();
+    }
+
     T const top = v00 + fracR * (v01 - v00);
     T const bottom = v10 + fracR * (v11 - v10);
     return top + fracZ * (bottom - top);
@@ -391,6 +405,10 @@ namespace c8_tracer
 
   inline uint RayTracingTable::SigFigs_(double val, uint decimalPoints = 3) const
   {
+    if (std::isnan(val))
+    {
+      return 3;
+    }
     if (val == 0)
       return 1;
     if (abs(val) < 1)
@@ -491,6 +509,12 @@ namespace c8_tracer
 
         double val = table[index(ir, iz)] / unit;
 
+        if (std::isnan(val))
+        {
+          std::cout << setw(maxLen) << "NaN";
+          continue;
+        }
+
         // Round small values to 3 decimals
         if (abs(val) > 1.0)
         {
@@ -513,6 +537,16 @@ namespace c8_tracer
     auto const z = dr.dot(plane_.getNormal());
     // r = dr - dr_z;  z = dr_z
     return std::make_tuple((dr - plane_.getNormal() * z).getNorm(), z);
+  }
+
+  template <typename T>
+  inline void RayTracingTable::FillWithNaN_(std::unique_ptr<T[]> &ptr, size_t N)
+  {
+    static_assert(std::is_floating_point_v<T>,
+                  "FillWithNaN_ requires a floating‑point type");
+
+    T nan = std::numeric_limits<T>::quiet_NaN();
+    std::fill_n(ptr.get(), N, nan);
   }
 
 } // namespace c8_tracer

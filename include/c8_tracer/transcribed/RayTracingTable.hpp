@@ -89,6 +89,9 @@ namespace c8_tracer
     mutable long int totalCalls_ = 0;
     mutable long int untrackedCalls_ = 0;
 
+    template <typename T>
+    inline void FillWithNaN_(std::unique_ptr<T[]> &ptr, size_t N);
+
     // Interpolation methods
     template <typename T>
     T InterpolateFromIndex_(T const *table, LengthType const &r,
