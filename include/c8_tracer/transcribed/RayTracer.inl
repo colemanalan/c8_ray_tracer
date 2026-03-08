@@ -653,7 +653,6 @@ namespace c8_tracer
     // check total-intertal-reflection case
     auto const ratio = n1 / n2;
     auto const sineSquareTheta2 = ratio * ratio * sineSquareTheta1; // Snell's law
-    // CORSIKA_LOG_TRACE("SinSqTh2 {}", sineSquareTheta2);
     if (sineSquareTheta2 <= 1.0)
     {
       auto const cosineTheta2 = sqrt(1.0 - sineSquareTheta2);
@@ -708,12 +707,8 @@ namespace c8_tracer
         x0 - plane.getNormal() * 1.001 * (x0 - plane.getCenter()).dot(plane.getNormal());
     auto const n2 = env.get_n(farPos);
 
-    // CORSIKA_LOG_TRACE("Far pos: {} n1: {} n2: {}", farPos, n1, n2);
-
     auto const cosineTheta1 = abs(endDir.normalized().dot(plane.getNormal()));
     auto const sineSquareTheta1 = 1.0 - cosineTheta1 * cosineTheta1;
-
-    // CORSIKA_LOG_TRACE("CosineTh1 {} SinSqTh1 {}", cosineTheta1, sineSquareTheta1);
 
     // init variables
     double reflectSComp = 1.0;
@@ -722,7 +717,6 @@ namespace c8_tracer
     // check total-intertal-reflection case
     auto const ratio = n1 / n2;
     auto const sineSquareTheta2 = ratio * ratio * sineSquareTheta1; // Snell's law
-    // CORSIKA_LOG_TRACE("SinSqTh2 {}", sineSquareTheta2);
     if (sineSquareTheta2 <= 1.0)
     {
       auto const cosineTheta2 = sqrt(1.0 - sineSquareTheta2);
@@ -735,20 +729,16 @@ namespace c8_tracer
     // perform reflection
     endDir = endDir - plane.getNormal() * 2 * endDir.dot(plane.getNormal());
 
-    // CORSIKA_LOG_TRACE("Fresnell perp: {} Fresnell parallel: {}", reflectSComp,
-    //                   reflectPComp);
-    // CORSIKA_LOG_TRACE("New direction: {}\n", endDir);
-
     // Want to ensure that we are on the correct side of the plane after reflection
     // Ensure this is the case by forcing it to the other side
-    auto const dist = DistToPlane(plane, end);
-    if (dist * DistToPlane(plane, x0) <= 0.0)
+    auto const distEnd = DistToPlane(plane, end);
+    if (distEnd * DistToPlane(plane, x0) <= 0.0)
     { // wrong side of plane
-      TRACER_LOG_TRACE("On the wrong side of the plane " + str(dist) + " " + str(DistToPlane(plane, x0)));
-      auto const v_perp = plane.getNormal().dot(endDir.normalized());
-      auto const t = abs(dist) / v_perp;
+      TRACER_LOG_TRACE("On the wrong side of the plane " + str(distEnd) + " " + str(DistToPlane(plane, x0)));
+      auto const v_perp = plane.getNormal().dot(endDir);
+      auto const t = abs(distEnd) / v_perp;
       TRACER_LOG_ALL("Adding " + str(endDir.normalized() * t * 1.001));
-      end = end + endDir.normalized() * t * 1.001;
+      end = end + endDir * t * 1.001;
     }
 
     TRACER_LOG_TRACE("New direction xf " + str(end) + " vf: " + str(endDir));
