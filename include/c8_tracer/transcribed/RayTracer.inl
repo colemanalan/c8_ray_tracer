@@ -973,33 +973,10 @@ namespace c8_tracer
       weightedIndexOfRefraction -= avgN * stepLength;
       propLength -= stepLength;
 
-      Point x0_root = x0;
-      DirectionVector v0_root = v0;
+      FindIntersectionWithPlane(x0, v0, end, endDir, Plane(target, axis_), stepSize, env);
 
-      // define the root function to give to Brent Method
-      auto root = [&](double mult)
-      {
-        Point e = x0_root;
-        DirectionVector d = v0_root;
-        double h = stepSize * mult;
-        double L = 0.0;
-        double n = 0.0;
-
-        TakeAdaptiveStep(x0_root, v0_root, e, d, h, env, L, n, false);
-        return distMethod(e);
-      };
-
-      double f0 = distMethod(x0);
-      double f1 = distMethod(end);
-
-      double frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
-      TRACER_LOG_TRACE("After final path check, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
-
-      // Take the refined final step (this one is physical)
-      double finalStep = stepSize * frac;
-      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(finalStep));
-      TakeAdaptiveStep(x0, v0, end, endDir, finalStep, env, stepLength, avgN, false);
+      avgN = 0.5 * (env.get_n(x0) + env.get_n(end));
+      stepLength = (end - x0).norm();
 
       weightedIndexOfRefraction += avgN * stepLength;
       propLength += stepLength;
