@@ -75,9 +75,9 @@ namespace c8_tracer
                        " err " + std::to_string(posError.norm()) + " err-ratio " + std::to_string(ratio) +
                        " h " + std::to_string(h));
 
-        hNew = h * 0.95f *
-               pow(ratio, -0.2f); // update step size to keep error close to tolerance
-        hNew = std::max(0.1f * h, std::min(hNew, 5 * h));
+        hNew = h * 0.95 *
+               pow(ratio, -0.2); // update step size to keep error close to tolerance
+        hNew = std::max(0.1 * h, std::min(hNew, 5 * h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
 
         TRACER_LOG_ALL("h0: " + std::to_string(h0) + " h: " + std::to_string(h) +
