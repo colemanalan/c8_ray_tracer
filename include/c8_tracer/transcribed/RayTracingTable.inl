@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iomanip>
 #include <iostream>
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/logger.hpp"
@@ -10,7 +11,8 @@ namespace c8_tracer
   inline RayTracingTable::RayTracingTable(LengthType minR, LengthType maxR, uint nRBins,
                                           LengthType minZ, LengthType maxZ, uint nZBins,
                                           Plane const &plane)
-      : nRBins_(nRBins), nZBins_(nZBins), maxR_(maxR), minR_(minR), maxZ_(maxZ), minZ_(minZ), r_(nRBins), z_(nZBins), launch_(nRBins * nZBins), receive_(nRBins * nZBins), length_(nRBins * nZBins), duration_(nRBins * nZBins), fresnelS_(nRBins * nZBins), fresnelP_(nRBins * nZBins), plane_(plane)
+      : nRBins_(nRBins), nZBins_(nZBins), maxR_(maxR), minR_(minR),
+        maxZ_(maxZ), minZ_(minZ), r_(nRBins), z_(nZBins), plane_(plane)
   {
 
     if (nRBins_ < 2)
@@ -41,6 +43,15 @@ namespace c8_tracer
       LOG_ERROR("Min r " + std::to_string(minR_) + " must be > 0");
       throw std::invalid_argument("Min r must be > 0");
     }
+
+    // construct the tables here
+    size_t N = nRBins_ * nZBins_;
+    launch_ = std::make_unique<double[]>(N);
+    receive_ = std::make_unique<double[]>(N);
+    length_ = std::make_unique<LengthType[]>(N);
+    duration_ = std::make_unique<TimeType[]>(N);
+    fresnelS_ = std::make_unique<double[]>(N);
+    fresnelP_ = std::make_unique<double[]>(N);
 
     LengthType dr = (maxR_ - minR_) / (nRBins_ - 1);
     LengthType dz = (maxZ_ - minZ_) / (nZBins_ - 1);
@@ -81,12 +92,13 @@ namespace c8_tracer
 
   inline void RayTracingTable::ResetTables()
   {
-    std::fill(launch_.begin(), launch_.end(), 0.0);
-    std::fill(receive_.begin(), receive_.end(), 0.0);
-    std::fill(length_.begin(), length_.end(), 0.0);
-    std::fill(duration_.begin(), duration_.end(), 0.0);
-    std::fill(fresnelS_.begin(), fresnelS_.end(), 1.0);
-    std::fill(fresnelP_.begin(), fresnelP_.end(), 1.0);
+    size_t N = nRBins_ * nZBins_;
+    std::fill_n(launch_.get(), N, 0.0);
+    std::fill_n(receive_.get(), N, 0.0);
+    std::fill_n(length_.get(), N, 0.0);
+    std::fill_n(duration_.get(), N, 0.0);
+    std::fill_n(fresnelS_.get(), N, 1.0);
+    std::fill_n(fresnelP_.get(), N, 1.0);
 
     totalCalls_ = 0;
     untrackedCalls_ = 0;
@@ -231,13 +243,13 @@ namespace c8_tracer
 
     auto const [r, z] = GetRAndZ_(x0);
     auto const [ir, iz] = GetIrIz(r, z);
-    auto const length = InterpolateFromIndex_(length_, r, z, ir, iz);
-    auto const duration = InterpolateFromIndex_(duration_, r, z, ir, iz);
-    auto const fresnelS = InterpolateFromIndex_(fresnelS_, r, z, ir, iz);
-    auto const fresnelP = InterpolateFromIndex_(fresnelP_, r, z, ir, iz);
+    auto const length = InterpolateFromIndex_(length_.get(), r, z, ir, iz);
+    auto const duration = InterpolateFromIndex_(duration_.get(), r, z, ir, iz);
+    auto const fresnelS = InterpolateFromIndex_(fresnelS_.get(), r, z, ir, iz);
+    auto const fresnelP = InterpolateFromIndex_(fresnelP_.get(), r, z, ir, iz);
 
-    auto const launch = InterpolateFromIndex_(launch_, r, z, ir, iz);
-    auto const receive = InterpolateFromIndex_(receive_, r, z, ir, iz);
+    auto const launch = InterpolateFromIndex_(launch_.get(), r, z, ir, iz);
+    auto const receive = InterpolateFromIndex_(receive_.get(), r, z, ir, iz);
 
     auto const dr = (plane_.getCenter() - x0);
     auto const xyComponents =
@@ -311,25 +323,31 @@ namespace c8_tracer
   }
 
   template <typename T>
-  inline T RayTracingTable::InterpolateFromIndex_(std::vector<T> const &table,
-                                                  LengthType const &r,
-                                                  LengthType const &z, uint ir,
-                                                  uint iz) const
+  inline T RayTracingTable::InterpolateFromIndex_(
+      T const *table,
+      LengthType const &r,
+      LengthType const &z,
+      uint ir,
+      uint iz) const noexcept
   {
-    double const fracZ = static_cast<double>((z - z_[iz]) * inverseDZ_);
-    double const fracR = static_cast<double>((r - r_[ir]) * inverseDR_);
-    double const invFracZ = 1.0 - fracZ;
-    double const invFracR = 1.0 - fracR;
+    double fracZ = (z - z_[iz]) * inverseDZ_;
+    double fracR = (r - r_[ir]) * inverseDR_;
 
-    return table[index(ir, iz)] * (invFracZ * invFracR) +
-           table[index(ir, iz + 1)] * (fracZ * invFracR) +
-           table[index(ir + 1, iz)] * (invFracZ * fracR) +
-           table[index(ir + 1, iz + 1)] * (fracZ * fracR);
+    uint base = iz * nRBins_ + ir;
+
+    T const v00 = table[base];
+    T const v01 = table[base + 1];
+    T const v10 = table[base + nRBins_];
+    T const v11 = table[base + nRBins_ + 1];
+
+    T const top = v00 + fracR * (v01 - v00);
+    T const bottom = v10 + fracR * (v11 - v10);
+    return top + fracZ * (bottom - top);
   }
 
   template <typename T>
-  inline T RayTracingTable::Interpolate_(std::vector<T> const &table, LengthType const &r,
-                                         LengthType const &z) const
+  inline T RayTracingTable::Interpolate_(T const *table, LengthType const &r,
+                                         LengthType const &z) const noexcept
   {
     auto const [ir, iz] = GetIrIz(r, z);
     return InterpolateFromIndex_(table, r, z, ir, iz);
@@ -338,37 +356,37 @@ namespace c8_tracer
   inline double RayTracingTable::GetLaunch(LengthType const &r,
                                            LengthType const &z) const
   {
-    return Interpolate_(launch_, r, z);
+    return Interpolate_(launch_.get(), r, z);
   }
 
   inline double RayTracingTable::GetReceive(LengthType const &r,
                                             LengthType const &z) const
   {
-    return Interpolate_(receive_, r, z);
+    return Interpolate_(receive_.get(), r, z);
   }
 
   inline LengthType RayTracingTable::GetLength(LengthType const &r,
                                                LengthType const &z) const
   {
-    return Interpolate_(length_, r, z);
+    return Interpolate_(length_.get(), r, z);
   }
 
   inline TimeType RayTracingTable::GetDuration(LengthType const &r,
                                                LengthType const &z) const
   {
-    return Interpolate_(duration_, r, z);
+    return Interpolate_(duration_.get(), r, z);
   }
 
   inline double RayTracingTable::GetFresnelS(LengthType const &r,
                                              LengthType const &z) const
   {
-    return Interpolate_(fresnelS_, r, z);
+    return Interpolate_(fresnelS_.get(), r, z);
   }
 
   inline double RayTracingTable::GetFresnelP(LengthType const &r,
                                              LengthType const &z) const
   {
-    return Interpolate_(fresnelP_, r, z);
+    return Interpolate_(fresnelP_.get(), r, z);
   }
 
   inline uint RayTracingTable::SigFigs_(double val, uint decimalPoints = 3) const
@@ -396,107 +414,92 @@ namespace c8_tracer
   template <typename T1, typename T2>
   inline void RayTracingTable::PrintTable_(T1 const &table, T2 const unit) const
   {
+    using std::abs;
+    using std::setfill;
+    using std::setw;
+
+    //////////////////////////////
+    /////// compute sig figs /////
+    //////////////////////////////
     uint maxLen = 4;
 
+    std::vector<uint> rWidth(r_.size());
     for (uint ir = 0; ir < r_.size(); ir++)
     {
-      maxLen = std::max(maxLen, SigFigs_(r_[ir]));
+      rWidth[ir] = SigFigs_(r_[ir]);
+      maxLen = std::max(maxLen, rWidth[ir]);
     }
 
+    std::vector<uint> zWidth(z_.size());
     for (uint iz = 0; iz < z_.size(); iz++)
     {
-      maxLen = std::max(maxLen, SigFigs_(z_[iz]));
+      zWidth[iz] = SigFigs_(z_[iz]);
+      maxLen = std::max(maxLen, zWidth[iz]);
     }
 
+    std::vector<uint> cellWidth(nRBins_ * nZBins_);
     for (uint iz = 0; iz < nZBins_; iz++)
     {
       for (uint ir = 0; ir < nRBins_; ir++)
       {
-        maxLen =
-            std::max(maxLen, SigFigs_(table[index(ir, iz)] / unit));
+        double val = table[index(ir, iz)] / unit;
+        uint w = SigFigs_(val);
+        cellWidth[index(ir, iz)] = w;
+        maxLen = std::max(maxLen, w);
       }
     }
 
-    // Print the r labels
-    std::cout << " dz ";
-    for (uint ispace = 0; ispace < maxLen - 4; ispace++)
-    {
-      std::cout << ' ';
-    }
-    std::cout << "|| ";
+    //////////////////////////////
+    ///////// print header ///////
+    //////////////////////////////
+    std::cout << " dz " << std::setw(maxLen - 4) << "" << "|| ";
+
     for (uint ir = 0; ir < r_.size(); ir++)
     {
-      // Add leading spaces
       if (ir)
         std::cout << " | ";
-
-      for (uint ispace = 0; ispace < maxLen - SigFigs_(r_[ir]); ispace++)
-      {
-        std::cout << " ";
-      }
-      std::cout << int(r_[ir]);
+      std::cout << std::setw(maxLen) << int(r_[ir]);
     }
     std::cout << " |\n";
 
-    for (uint ispace = 0; ispace < maxLen; ispace++)
-    {
-      std::cout << '=';
-    }
-    std::cout << "||=";
+    //////////////////////////////
+    ////// print separator ///////
+    //////////////////////////////
+    std::cout << std::setw(maxLen) << std::setfill('=') << "" << setfill(' ')
+              << "||=";
+
     for (uint ir = 0; ir < r_.size(); ir++)
     {
-      // Add leading spaces
       if (ir)
         std::cout << "=|=";
-
-      for (uint ispace = 0; ispace < maxLen; ispace++)
-      {
-        std::cout << "=";
-      }
+      std::cout << std::setw(maxLen) << std::setfill('=') << "" << setfill(' ');
     }
     std::cout << "=|\n";
 
+    //////////////////////////////
+    ////// print table rows //////
+    //////////////////////////////
     for (uint iz = 0; iz < z_.size(); iz++)
     {
 
-      if (SigFigs_(z_[iz]) > maxLen)
-      {
-        LOG_ERROR("Negative sig fig found!");
-        std::cout << maxLen << ' ' << SigFigs_(z_[iz]) << std::endl;
-        return;
-      }
-
-      for (uint ispace = 0; ispace < maxLen - SigFigs_(z_[iz]); ispace++)
-      {
-        std::cout << ' ';
-      }
-
-      std::cout << int(z_[iz]) << "|| ";
+      std::cout << std::setw(maxLen) << int(z_[iz]) << "|| ";
 
       for (uint ir = 0; ir < nRBins_; ir++)
       {
         if (ir)
           std::cout << " | ";
 
-        if (SigFigs_(table[index(ir, iz)] / unit) > maxLen)
-        {
-          LOG_ERROR("Negative sig fig found!");
-          std::cout << maxLen << ' ' << SigFigs_(table[index(ir, iz)] / unit) << std::endl;
-          return;
-        }
-        for (uint ispace = 0; ispace < maxLen - SigFigs_(table[index(ir, iz)] / unit);
-             ispace++)
-        {
-          std::cout << " ";
-        }
+        double val = table[index(ir, iz)] / unit;
 
-        if (abs(table[index(ir, iz)] / unit) > 1)
+        // Round small values to 3 decimals
+        if (abs(val) > 1.0)
         {
-          std::cout << int(table[index(ir, iz)] / unit);
+          std::cout << std::setw(maxLen) << std::lround(val);
         }
         else
         {
-          std::cout << int(table[index(ir, iz)] / unit * pow(10, 3)) / pow(10, 3);
+          double rounded = std::round(val * 1000.0) / 1000.0;
+          std::cout << std::setw(maxLen) << rounded;
         }
       }
       std::cout << " |\n";
