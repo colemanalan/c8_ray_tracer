@@ -11,7 +11,7 @@ namespace c8_tracer
   {
     double x, y;
 
-    constexpr Vec2(double x = 0.0, double y = 0.0) : x(x), y(y) {}
+    constexpr Vec2(double xx = 0.0, double yy = 0.0) : x(xx), y(yy) {}
 
     // Arithmetic
     constexpr Vec2 operator+(const Vec2 &rhs) const { return {x + rhs.x, y + rhs.y}; }

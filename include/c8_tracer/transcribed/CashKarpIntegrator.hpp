@@ -32,8 +32,6 @@ namespace c8_tracer
 
     std::array<Vec3, 6> posPerStep_;
     std::array<Vec3, 6> dirPerStep_;
-    std::array<LengthType, 6> lenPerStep_;
-    std::array<double, 6> nPerStep_;
 
     // Cash-Karp coefficients
     // clang-format off
@@ -77,9 +75,9 @@ namespace c8_tracer
                        " err " + std::to_string(posError.norm()) + " err-ratio " + std::to_string(ratio) +
                        " h " + std::to_string(h));
 
-        hNew = h * 0.95f *
-               pow(ratio, -0.2f); // update step size to keep error close to tolerance
-        hNew = std::max(0.1f * h, std::min(hNew, 5 * h));
+        hNew = h * 0.95 *
+               pow(ratio, -0.2); // update step size to keep error close to tolerance
+        hNew = std::max(0.1 * h, std::min(hNew, 5 * h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
 
         TRACER_LOG_ALL("h0: " + std::to_string(h0) + " h: " + std::to_string(h) +
@@ -114,16 +112,20 @@ namespace c8_tracer
       KahanSum lenAcc;
       KahanSum nAcc;
 
+      Vec3 tempPos(startPos);
+      Vec3 tempDir(startDir);
+
       for (size_t i = 0; i < 6; i++)
       {
 
-        Vec3 tempPos(startPos);
-        Vec3 tempDir(startDir);
+        tempPos = startPos;
+        tempDir = startDir;
 
         for (size_t j = 0; j < i; j++)
         {
-          tempPos = tempPos + posPerStep_[j] * parA_[i * 6 + j] * h;
-          tempDir = tempDir + dirPerStep_[j] * parA_[i * 6 + j] * h;
+          auto const ah = parA_[i * 6 + j] * h;
+          tempPos = tempPos + posPerStep_[j] * ah;
+          tempDir = tempDir + dirPerStep_[j] * ah;
         }
 
         // Calculate optical properties
@@ -134,12 +136,14 @@ namespace c8_tracer
         dirPerStep_[i] = env.get_grad_n(tempPos) * inverseRefract *
                          inverseRefract; // Grad / n^2
 
-        endPos = endPos + posPerStep_[i] * parB_[i] * h;
-        endDir = endDir + dirPerStep_[i] * parB_[i] * h;
+        auto const bh = parB_[i] * h;
+        endPos = endPos + posPerStep_[i] * bh;
+        endDir = endDir + dirPerStep_[i] * bh;
         posError = posError + posPerStep_[i] * (parB_[i] - parC_[i]) * h;
 
-        lenAcc.add(posPerStep_[i].norm() * parB_[i] * h);
-        nAcc.add(n_refract * posPerStep_[i].norm() * parB_[i] * h);
+        auto const bNorm = posPerStep_[i].norm();
+        lenAcc.add(bNorm * bh);
+        nAcc.add(n_refract * bNorm * bh);
       }
 
       stepLength = lenAcc.sum;

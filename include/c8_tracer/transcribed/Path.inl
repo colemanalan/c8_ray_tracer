@@ -11,7 +11,7 @@ namespace c8_tracer
   inline Path::Path(std::deque<Point> const &points)
       : points_(points)
   {
-    int dequesize_ = points.size();
+    auto dequesize_ = points.size();
     if (dequesize_ == 0 || dequesize_ == 1)
     {
       length_ = 0.0;
@@ -41,7 +41,7 @@ namespace c8_tracer
   {
     auto lastpoint_ = points_.back();
     points_.pop_back();
-    int dequesize_ = points_.size();
+    auto dequesize_ = points_.size();
     if (dequesize_ == 0 || dequesize_ == 1)
     {
       length_ = 0.0;
@@ -62,7 +62,7 @@ namespace c8_tracer
 
   inline Point const &Path::getEnd() const { return points_.back(); }
 
-  inline Point const &Path::getPoint(std::size_t const index) const
+  inline Point const &Path::getPoint(int const index) const
   {
     return points_.at(index);
   }
@@ -75,6 +75,6 @@ namespace c8_tracer
 
   inline Path::iterator Path::end() { return points_.end(); }
 
-  inline int Path::getNSegments() const { return points_.size() - 1; }
+  inline int Path::getNSegments() const { return int(points_.size()) - 1; }
 
 } // namespace corsika

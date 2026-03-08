@@ -60,7 +60,7 @@ namespace c8_tracer
     /**
      * Get a specific point of the path.
      */
-    inline Point const &getPoint(std::size_t const index) const;
+    inline Point const &getPoint(int const index) const;
 
     /**
      * Return an iterator to the start of the Path.

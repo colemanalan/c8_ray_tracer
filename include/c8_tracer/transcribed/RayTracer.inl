@@ -1,8 +1,9 @@
 #pragma once
 
 #include "c8_tracer/logger.hpp"
-#include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/brent.hpp"
+#include "c8_tracer/transcribed/c8_typedefs.hpp"
+#include "c8_tracer/transcribed/CosineScanner.hpp"
 #include "c8_tracer/transcribed/RayTracer.hpp"
 #include "RayTracer.hpp"
 
@@ -228,6 +229,7 @@ namespace c8_tracer
       return DirectionVector({sine * cos(phi), sine * sin(phi), cosine});
     };
 
+    Plane const targetPlane(target, axis_);
     // construct a distance function
     auto dist2D = [&](double cosine)
     {
@@ -246,90 +248,58 @@ namespace c8_tracer
       return dist;
     };
 
-    std::map<double, LengthType>
-        cachedSamples; // holds solutions to avoid duplicate math
+    CosineScanner scanner(-1.0, 1.0);
+
+    // symmetric rays cannot propagate
+    scanner.Cache(-1.0, Get2DRadialDistance(start, target, start));
+    scanner.Cache(1.0, Get2DRadialDistance(start, target, start));
 
     int iteration = 0;
-
-    double cosMin = -1.0;
-    double cosMax = 1.0;
     int nRays = nRaysInit;
-
-    // These rays cannot propagate since the medium is symmetric about the axis
-    cachedSamples[cosMin] = cachedSamples[cosMax] = Get2DRadialDistance(start, target, start);
 
     TRACER_LOG_INFO("Finding solution using " + std::to_string(nRays) + " rays");
 
     while (iteration < maxIterations)
     {
-      std::vector<double> x_vals(nRays);
 
-      for (int isol = 0; isol < nRays; isol++)
+      auto xvals = scanner.GenerateGrid(nRays);
+
+      // evaluate missing samples in the cache
+      for (double x : xvals)
       {
-        // set up initial ray direction. Pull solutions from cache if available or calculate
-        x_vals[isol] = std::clamp(cosMin + isol * (cosMax - cosMin) / double(nRays - 1.0), -1.0, 1.0);
-        if (cachedSamples.find(x_vals[isol]) == cachedSamples.end())
+        if (!scanner.Has(x))
         {
-          cachedSamples[x_vals[isol]] = dist2D(x_vals[isol]);
+          auto err = dist2D(x);
+          scanner.Cache(x, err);
         }
       }
 
-      // Remove entries with infinity
-      x_vals.erase(
-          std::remove_if(x_vals.begin(), x_vals.end(),
-                         [&](double x)
-                         {
-                           auto it = cachedSamples.find(x);
-                           if (it != cachedSamples.end() && std::isinf(it->second))
-                           {
-                             TRACER_LOG_DEBUG("Bad initial value found, removing cos " + str(it->first) + " from list");
-                             cachedSamples.erase(it); // Remove from map
-                             return true;             // Mark for removal from vector
-                           }
-                           return false;
-                         }),
-          x_vals.end());
+      scanner.RemoveIfInvalid(); // removes inf/nan
 
-      TRACER_LOG_INFO("Initial solutions");
-      for (const auto &x_val : x_vals)
+      TRACER_LOG_INFO("Initial solutions:");
+      for (double x : scanner.SortedCosines())
       {
-        TRACER_LOG_INFO("\tcos(th): " + str(x_val) + "   dR: " + str(cachedSamples[x_val]));
+        TRACER_LOG_INFO("\tcos(th): " + str(x) + "   dR: " + str(scanner.Get(x)));
       }
+
+      // Find sign-change intervals
+      auto intervals = scanner.FindSignChangeIntervals();
 
       std::vector<DirectionVector> foundEmit;
       std::vector<DirectionVector> foundReceive;
 
-      // collect all cached cosines within current bounds
-      std::vector<double> validCosines;
-      for (auto const &[cosine, error] : cachedSamples)
+      for (auto const &[x0, x1] : intervals)
       {
-        if (cosine >= cosMin && cosine <= cosMax)
-        {
-          validCosines.push_back(cosine);
-        }
-      }
+        double f0 = scanner.Get(x0);
+        double f1 = scanner.Get(x1);
 
-      // sort them to ensure adjacent comparisons
-      std::sort(validCosines.begin(), validCosines.end());
+        TRACER_LOG_DEBUG("Using brent on cos0 " + str(x0) + " f0 " +
+                         str(f0) + " cos1 " + str(x1) + " f1 " + str(f1));
+        auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
+        auto const emit = makeDirVec(cosine);
 
-      // look for sign changes between neighboring consine values
-      for (size_t i = 0; i + 1 < validCosines.size(); ++i)
-      {
-        double x0 = validCosines[i];
-        double x1 = validCosines[i + 1];
-        double f0 = cachedSamples[x0];
-        double f1 = cachedSamples[x1];
-
-        if (f0 * f1 <= 0.0 || std::abs(f0) < STOP_CLOSE_LENGTH || std::abs(f1) < STOP_CLOSE_LENGTH)
-        {
-          TRACER_LOG_DEBUG("Using brent on cos0 " + str(x0) + " f0 " +
-                           str(f0) + " cos1 " + str(x1) + " f1 " + str(f1));
-          auto const cosine = BrentMethod(dist2D, x0, x1, f0, f1, DCOS_TOL);
-          auto const emit = makeDirVec(cosine);
-
-          foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
-          foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
-        }
+        foundEmit.push_back((flippedStartEnd ? testDir * -1.0 : emit));
+        foundReceive.push_back((flippedStartEnd ? testDir : emit * -1.0));
       }
 
       if (!foundEmit.empty())
@@ -339,51 +309,24 @@ namespace c8_tracer
       }
 
       TRACER_LOG_DEBUG("After iteration " + str(iteration + 1) +
-                       ", no solutions found after shooting " + str(cachedSamples.size()) +
+                       ", no solutions found after shooting " + str(scanner.CacheSize()) +
                        " total rays");
 
-      // update the cosine interval to keep the top 3 solutions
       if (iteration < maxIterations - 1)
       {
-        // choose the three best errors and use that to update the limits of cosMin and cosMax
-        std::vector<std::pair<double, LengthType>> sortedSamples(cachedSamples.begin(), cachedSamples.end());
-
-        // sort by absolute error
-        std::sort(sortedSamples.begin(), sortedSamples.end(),
-                  [](auto const &a, auto const &b)
-                  {
-                    return std::abs(a.second) < std::abs(b.second);
-                  });
-
-        // take up to three best samples
-        size_t nBest = std::min<size_t>(3, sortedSamples.size());
-        double newCosMin = sortedSamples[0].first;
-        double newCosMax = sortedSamples[0].first;
-
-        for (size_t i = 1; i < nBest; ++i)
-        {
-          newCosMin = std::min(newCosMin, sortedSamples[i].first);
-          newCosMax = std::max(newCosMax, sortedSamples[i].first);
-        }
-
-        cosMin = std::max(-1.0, newCosMin);
-        cosMax = std::min(1.0, newCosMax);
-        TRACER_LOG_DEBUG("New cosine limits are " + str(cosMin) + " and " + str(cosMax));
-        TRACER_LOG_DEBUG("Closest point at " + str(sortedSamples[0].second));
+        scanner.UpdateBoundsFromBest(3);
       }
 
-      if (!iteration)
-      {
+      if (iteration == 0)
         nRays += 2;
-      }
+
       iteration++;
     }
 
-    TRACER_LOG_INFO("Solution finding failed after shooting " + str(cachedSamples.size()) +
-                    " total rays. Current dcos = " + str((cosMax - cosMin) / float(nRays)));
+    TRACER_LOG_INFO("Solution finding failed after shooting " + str(scanner.CacheSize()) +
+                    " total rays");
     return std::make_tuple(std::vector<DirectionVector>{}, std::vector<DirectionVector>{});
   }
-
   inline bool RayTracer2D::FindEmitAndReceive(
       Point const &sourceXX, Point const &targetXX, EnvironmentBase const &env,
       DirectionVector const &seed, DirectionVector &emit, DirectionVector &receive)
@@ -629,6 +572,7 @@ namespace c8_tracer
 
   inline void RayTracer2D::FindIntersectionWithPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
@@ -637,8 +581,6 @@ namespace c8_tracer
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
     constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
-    LengthType stepLength;
-    double avgN;
     LengthType initStepSize = step;
     auto const f0 = DistToPlane(plane, x0);
     auto f1 = DistToPlane(plane, end);
@@ -659,7 +601,7 @@ namespace c8_tracer
 
       initSteps++;
       initStepSize *= 2.0;
-      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN);
+      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, pathLength, avgN);
       f1 = DistToPlane(plane, end);
     }
 
@@ -669,25 +611,26 @@ namespace c8_tracer
     auto root = [&](double mult)
     {
       testStep = brentStep * mult;
-      TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN);
+      TakeFixedStep(x0, v0, end, endDir, testStep, env, pathLength, avgN);
       return DistToPlane(plane, end);
     };
 
     auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, PLANE_CLOSE_TOL);
     testStep = brentStep * frac;
-    TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN); // take found step
+    TakeFixedStep(x0, v0, end, endDir, testStep, env, pathLength, avgN); // take found step
 
     planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
 
   inline std::tuple<double, double> RayTracer2D::TransmitThroughPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
     TRACER_LOG_TRACE("Performing transmission starting at x0: " + str(x0) + " v0: " +
                      str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
 
-    FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
+    FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, plane, step, env);
     TRACER_LOG_ALL("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
     auto const n1 = env.get_n(x0);
@@ -745,12 +688,13 @@ namespace c8_tracer
 
   inline std::tuple<double, double> RayTracer2D::ReflectOffPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
     TRACER_LOG_TRACE("Performing reflection starting at x0: " + str(x0) + " v0: " +
                      str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
-    FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
+    FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, plane, step, env);
 
     TRACER_LOG_TRACE("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
@@ -965,7 +909,7 @@ namespace c8_tracer
     double fresnelP = 1.0;
 
     LengthType stepSize = INITAL_STEP_SIZE;
-    LengthType stepLength = 0.0;
+    LengthType pathLength = 0.0;
     double avgN = 0.0;
 
     // Accumulated quantities
@@ -980,7 +924,7 @@ namespace c8_tracer
       // advance one step
       x0 = end;
       v0 = endDir;
-      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, stepLength, avgN, true);
+      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, pathLength, avgN, true);
 
       // handle plane crossings
       for (auto const &plane : reflectionLayers_)
@@ -994,7 +938,7 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered reflection loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, pathLength, avgN, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -1002,7 +946,7 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered transmission loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, pathLength, avgN, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -1010,8 +954,8 @@ namespace c8_tracer
       }
 
       // accumulate this step
-      weightedIndexOfRefraction += avgN * stepLength;
-      propLength += stepLength;
+      weightedIndexOfRefraction += avgN * pathLength;
+      propLength += pathLength;
 
       if (recordPath)
         path.addToEnd(end);
@@ -1027,39 +971,13 @@ namespace c8_tracer
       {
         path.removeFromEnd();
       }
-      weightedIndexOfRefraction -= avgN * stepLength;
-      propLength -= stepLength;
+      weightedIndexOfRefraction -= avgN * pathLength;
+      propLength -= pathLength;
 
-      Point x0_root = x0;
-      DirectionVector v0_root = v0;
+      FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, Plane(target, axis_), stepSize, env);
 
-      // define the root function to give to Brent Method
-      auto root = [&](double mult)
-      {
-        Point e = x0_root;
-        DirectionVector d = v0_root;
-        double h = stepSize * mult;
-        double L = 0.0;
-        double n = 0.0;
-
-        TakeAdaptiveStep(x0_root, v0_root, e, d, h, env, L, n, false);
-        return distMethod(e);
-      };
-
-      double f0 = distMethod(x0);
-      double f1 = distMethod(end);
-
-      double frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
-      TRACER_LOG_TRACE("After final path check, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
-
-      // Take the refined final step (this one is physical)
-      double finalStep = stepSize * frac;
-      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(finalStep));
-      TakeAdaptiveStep(x0, v0, end, endDir, finalStep, env, stepLength, avgN, false);
-
-      weightedIndexOfRefraction += avgN * stepLength;
-      propLength += stepLength;
+      weightedIndexOfRefraction += avgN * pathLength;
+      propLength += pathLength;
     }
     else
     {
@@ -1083,19 +1001,19 @@ namespace c8_tracer
 
   inline void RayTracer2D::TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                                             Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                                            LengthType &stepLength, double &avgN,
+                                            LengthType &pathLength, double &avgN,
                                             bool updateStep)
   {
-    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, stepLength, avgN, updateStep);
+    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, pathLength, avgN, updateStep);
     stepsTaken_++;
   }
 
   inline void RayTracer2D::TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                                          Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                                         double &stepLength, double &avgN)
+                                         double &pathLength, double &avgN)
   {
     Vec3 posErr(0, 0, 0);
-    tracer_.Step(startPos, startDir, endPos, endDir, posErr, h0, env, stepLength, avgN);
+    tracer_.Step(startPos, startDir, endPos, endDir, posErr, h0, env, pathLength, avgN);
     stepsTaken_++;
   }
 

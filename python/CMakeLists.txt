@@ -21,7 +21,7 @@ pybind11_add_module(c8_tracer_ext ${SOURCE_LIST})
 
 # Enable compiler warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(c8_tracer_ext PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(c8_tracer_ext PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wdouble-promotion)
 endif()
 
 target_include_directories(c8_tracer_ext PRIVATE ${PROJECT_SOURCE_DIR}/include)
