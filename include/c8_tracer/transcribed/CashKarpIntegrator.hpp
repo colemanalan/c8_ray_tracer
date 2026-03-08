@@ -83,6 +83,10 @@ namespace c8_tracer
         TRACER_LOG_ALL("h0: " + std::to_string(h0) + " h: " + std::to_string(h) +
                        " hNew: " + std::to_string(hNew));
 
+        if (ratio <= 1.0)
+          h = hNew;
+        break;
+
         if (hNew == h)
           break;
 
@@ -111,11 +115,14 @@ namespace c8_tracer
       KahanSum lenAcc;
       KahanSum nAcc;
 
+      Vec3 tempPos(startPos);
+      Vec3 tempDir(startDir);
+
       for (size_t i = 0; i < 6; i++)
       {
 
-        Vec3 tempPos(startPos);
-        Vec3 tempDir(startDir);
+        tempPos = startPos;
+        tempDir = startDir;
 
         for (size_t j = 0; j < i; j++)
         {
