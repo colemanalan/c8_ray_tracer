@@ -936,8 +936,20 @@ namespace c8_tracer
 
     uint istep = 0;
 
+    auto distEnd = distMethod(end);
+    auto distX0 = distMethod(x0);
+
+    // pre-compute distances
+    std::vector<LengthType> sTargetCache;
+    sTargetCache.reserve(reflectionLayers_.size());
+
+    for (auto const &plane : reflectionLayers_)
+    {
+      sTargetCache.push_back(DistToPlane(plane, target));
+    }
+
     // march forward until we bracket root or hit maxSteps
-    while (distMethod(end) * distMethod(x0) >= 0.0 && istep < maxSteps)
+    while (distEnd * distX0 >= 0.0 && istep < maxSteps)
     {
       // advance one step
       x0 = end;
@@ -945,11 +957,12 @@ namespace c8_tracer
       TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, pathLength, avgN, true);
 
       // handle plane crossings
+      size_t pIndex = 0;
       for (auto const &plane : reflectionLayers_)
       {
-        double s0 = DistToPlane(plane, x0);
-        double s1 = DistToPlane(plane, end);
-        double sTarget = DistToPlane(plane, target);
+        LengthType s0 = DistToPlane(plane, x0);
+        LengthType s1 = DistToPlane(plane, end);
+        LengthType sTarget = sTargetCache[pIndex];
 
         if (s0 * s1 < 0.0) // crossed plane
         {
@@ -970,6 +983,10 @@ namespace c8_tracer
             fresnelP *= tempP;
           }
         }
+
+        distEnd = distMethod(end);
+        distX0 = distMethod(x0);
+        pIndex++;
       }
 
       // accumulate this step
@@ -983,7 +1000,7 @@ namespace c8_tracer
     }
 
     // if bracketed the root, refine last step
-    if (distMethod(end) * distMethod(x0) <= 0.0)
+    if (distEnd * distX0 <= 0.0)
     {
       // the last accumulated segment will be an overshoot, so remove it
       if (recordPath)
