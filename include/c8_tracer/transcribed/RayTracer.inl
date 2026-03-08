@@ -908,7 +908,7 @@ namespace c8_tracer
     double fresnelP = 1.0;
 
     LengthType stepSize = INITAL_STEP_SIZE;
-    LengthType stepLength = 0.0;
+    LengthType pathLength = 0.0;
     double avgN = 0.0;
 
     // Accumulated quantities
@@ -923,7 +923,7 @@ namespace c8_tracer
       // advance one step
       x0 = end;
       v0 = endDir;
-      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, stepLength, avgN, true);
+      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, pathLength, avgN, true);
 
       // handle plane crossings
       for (auto const &plane : reflectionLayers_)
@@ -953,8 +953,8 @@ namespace c8_tracer
       }
 
       // accumulate this step
-      weightedIndexOfRefraction += avgN * stepLength;
-      propLength += stepLength;
+      weightedIndexOfRefraction += avgN * pathLength;
+      propLength += pathLength;
 
       if (recordPath)
         path.addToEnd(end);
@@ -970,16 +970,16 @@ namespace c8_tracer
       {
         path.removeFromEnd();
       }
-      weightedIndexOfRefraction -= avgN * stepLength;
-      propLength -= stepLength;
+      weightedIndexOfRefraction -= avgN * pathLength;
+      propLength -= pathLength;
 
       FindIntersectionWithPlane(x0, v0, end, endDir, Plane(target, axis_), stepSize, env);
 
       avgN = 0.5 * (env.get_n(x0) + env.get_n(end));
-      stepLength = (end - x0).norm();
+      pathLength = (end - x0).norm();
 
-      weightedIndexOfRefraction += avgN * stepLength;
-      propLength += stepLength;
+      weightedIndexOfRefraction += avgN * pathLength;
+      propLength += pathLength;
     }
     else
     {
@@ -1003,19 +1003,19 @@ namespace c8_tracer
 
   inline void RayTracer2D::TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                                             Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                                            LengthType &stepLength, double &avgN,
+                                            LengthType &pathLength, double &avgN,
                                             bool updateStep)
   {
-    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, stepLength, avgN, updateStep);
+    tracer_.AdaptiveStep(startPos, startDir, endPos, endDir, h0, env, pathLength, avgN, updateStep);
     stepsTaken_++;
   }
 
   inline void RayTracer2D::TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                                          Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                                         double &stepLength, double &avgN)
+                                         double &pathLength, double &avgN)
   {
     Vec3 posErr(0, 0, 0);
-    tracer_.Step(startPos, startDir, endPos, endDir, posErr, h0, env, stepLength, avgN);
+    tracer_.Step(startPos, startDir, endPos, endDir, posErr, h0, env, pathLength, avgN);
     stepsTaken_++;
   }
 

@@ -294,11 +294,11 @@ namespace c8_tracer
     // Wrapper for the Adaptive step of the ray tracer
     void TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                           Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                          LengthType &stepLength, double &avgN,
+                          LengthType &pathLength, double &avgN,
                           bool updateStep = true);
     void TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                        Vec3 &endDir, double &h0, EnvironmentBase const &env,
-                       double &stepLength, double &avgN);
+                       double &pathLength, double &avgN);
   };
 }
 
