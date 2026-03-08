@@ -574,6 +574,7 @@ namespace c8_tracer
 
   inline void RayTracer2D::FindIntersectionWithPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
@@ -582,8 +583,6 @@ namespace c8_tracer
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
     constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
-    LengthType stepLength;
-    double avgN;
     LengthType initStepSize = step;
     auto const f0 = DistToPlane(plane, x0);
     auto f1 = DistToPlane(plane, end);
@@ -604,7 +603,7 @@ namespace c8_tracer
 
       initSteps++;
       initStepSize *= 2.0;
-      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, stepLength, avgN);
+      TakeFixedStep(x0, v0, end, endDir, initStepSize, env, pathLength, avgN);
       f1 = DistToPlane(plane, end);
     }
 
@@ -614,25 +613,26 @@ namespace c8_tracer
     auto root = [&](double mult)
     {
       testStep = brentStep * mult;
-      TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN);
+      TakeFixedStep(x0, v0, end, endDir, testStep, env, pathLength, avgN);
       return DistToPlane(plane, end);
     };
 
     auto const frac = BrentMethod(root, 0.0, 1.0, f0, f1, PLANE_CLOSE_TOL);
     testStep = brentStep * frac;
-    TakeFixedStep(x0, v0, end, endDir, testStep, env, stepLength, avgN); // take found step
+    TakeFixedStep(x0, v0, end, endDir, testStep, env, pathLength, avgN); // take found step
 
     planeIntersectionSteps_ += stepsTaken_ - currentSteps;
   }
 
   inline std::tuple<double, double> RayTracer2D::TransmitThroughPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
     TRACER_LOG_TRACE("Performing transmission starting at x0: " + str(x0) + " v0: " +
                      str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
 
-    FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
+    FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, plane, step, env);
     TRACER_LOG_ALL("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
     auto const n1 = env.get_n(x0);
@@ -690,12 +690,13 @@ namespace c8_tracer
 
   inline std::tuple<double, double> RayTracer2D::ReflectOffPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
     TRACER_LOG_TRACE("Performing reflection starting at x0: " + str(x0) + " v0: " +
                      str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
-    FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
+    FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, plane, step, env);
 
     TRACER_LOG_TRACE("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
@@ -926,7 +927,7 @@ namespace c8_tracer
     double fresnelP = 1.0;
 
     LengthType stepSize = INITAL_STEP_SIZE;
-    LengthType stepLength = 0.0;
+    LengthType pathLength = 0.0;
     double avgN = 0.0;
 
     // Accumulated quantities
@@ -941,7 +942,7 @@ namespace c8_tracer
       // advance one step
       x0 = end;
       v0 = endDir;
-      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, stepLength, avgN, true);
+      TakeAdaptiveStep(x0, v0, end, endDir, stepSize, env, pathLength, avgN, true);
 
       // handle plane crossings
       for (auto const &plane : reflectionLayers_)
@@ -956,7 +957,7 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered reflection loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, pathLength, avgN, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -964,7 +965,7 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered transmission loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, pathLength, avgN, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -972,8 +973,8 @@ namespace c8_tracer
       }
 
       // accumulate this step
-      weightedIndexOfRefraction += avgN * stepLength;
-      propLength += stepLength;
+      weightedIndexOfRefraction += avgN * pathLength;
+      propLength += pathLength;
 
       if (recordPath)
         path.addToEnd(end);
@@ -989,39 +990,14 @@ namespace c8_tracer
       {
         path.removeFromEnd();
       }
-      weightedIndexOfRefraction -= avgN * stepLength;
-      propLength -= stepLength;
+      weightedIndexOfRefraction -= avgN * pathLength;
+      propLength -= pathLength;
 
-      Point x0_root = x0;
-      DirectionVector v0_root = v0;
+      Plane const targetPlane(target, axis_);
+      FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, targetPlane, stepSize, env);
 
-      // define the root function to give to Brent Method
-      auto root = [&](double mult)
-      {
-        Point e = x0_root;
-        DirectionVector d = v0_root;
-        double h = stepSize * mult;
-        double L = 0.0;
-        double n = 0.0;
-
-        TakeAdaptiveStep(x0_root, v0_root, e, d, h, env, L, n, false);
-        return distMethod(e);
-      };
-
-      double f0 = distMethod(x0);
-      double f1 = distMethod(end);
-
-      double frac = BrentMethod(root, 0.0, 1.0, f0, f1, STOP_CLOSE_LENGTH);
-      TRACER_LOG_TRACE("After final path check, x0: " + str(x0) +
-                       ", v0: " + str(v0) + ", xf: " + str(end) + ", vf: " + str(endDir));
-
-      // Take the refined final step (this one is physical)
-      double finalStep = stepSize * frac;
-      TRACER_LOG_TRACE("Frac is " + str(frac) + ", step size is " + str(finalStep));
-      TakeAdaptiveStep(x0, v0, end, endDir, finalStep, env, stepLength, avgN, false);
-
-      weightedIndexOfRefraction += avgN * stepLength;
-      propLength += stepLength;
+      weightedIndexOfRefraction += avgN * pathLength;
+      propLength += pathLength;
     }
     else
     {

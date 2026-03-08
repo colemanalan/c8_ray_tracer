@@ -184,6 +184,10 @@ namespace c8_tracer
         plane)
       endDir:
         this value will be update with direction at `end` after reflecting it
+      pathLength:
+        this value will get filled with the path length of the intersecting step
+      avgN
+        will get filled with the average index of refraction of the intersecting step
       plane:
         plane that is doing the reflecting
       step:
@@ -192,7 +196,9 @@ namespace c8_tracer
         description of the refractive index and gradient
     */
     void FindIntersectionWithPlane(Point const &x0, DirectionVector const &v0, Point &end,
-                                   DirectionVector &endDir, Plane const &plane,
+                                   DirectionVector &endDir,
+                                   LengthType &pathLength, double &avgN,
+                                   Plane const &plane,
                                    LengthType const step, EnvironmentBase const &env);
 
     /*
@@ -222,6 +228,7 @@ namespace c8_tracer
     */
     std::tuple<double, double> ReflectOffPlane(Point const &x0, DirectionVector const &v0,
                                                Point &end, DirectionVector &endDir,
+                                               LengthType &pathLength, double &avgN,
                                                Plane const &plane, LengthType const step,
                                                EnvironmentBase const &env);
 
@@ -252,8 +259,36 @@ namespace c8_tracer
     */
     std::tuple<double, double> TransmitThroughPlane(Point const &x0, DirectionVector const &v0,
                                                     Point &end, DirectionVector &endDir,
+                                                    LengthType &pathLength, double &avgN,
                                                     Plane const &plane, LengthType const step,
                                                     EnvironmentBase const &env);
+
+    /*
+    This helps find the point that is exactly a specified lateral distance (see
+    `Get2DProjection`) away from `x0`. The function performs a binary search to find
+    the step size required such that the propagation is at the correct distance. This
+    function expects to only need to perform a single step and optimizes the step size
+    such that the ray arrives at the boundary
+
+    Arguments:
+      x0:
+        starting location of the launch point (should be only 1 step away from the
+        boundary)
+      v0:
+        initial direction of propagation at `x0`
+      end:
+        this value will be updated with the final location (will be sqrt(`rMaxSq`) from
+      endDir:
+        this value will be update with direction at `end` point
+      rMaxSq:
+        plane that is doing the reflecting step: maximum step size in the binary
+        search
+
+      env: description of the refractive index and gradient
+    */
+    void FindRadius(Point const &x0, DirectionVector const &v0, Point &end,
+                    DirectionVector &endDir, LengthTypeSq const rMaxSq,
+                    LengthType const step, EnvironmentBase const &env);
 
     /*
     Gets the projection in the x-y plane of the vector from `x0` to `x1`
@@ -301,7 +336,6 @@ namespace c8_tracer
                           Vec3 &endDir, double &h0, EnvironmentBase const &env,
                           LengthType &stepLength, double &avgN,
                           bool updateStep = true);
-
     void TakeFixedStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                        Vec3 &endDir, double &h0, EnvironmentBase const &env,
                        double &stepLength, double &avgN);
