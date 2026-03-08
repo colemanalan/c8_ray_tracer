@@ -188,8 +188,8 @@ namespace c8_tracer
         description of the refractive index and gradient
     */
     void FindIntersectionWithPlane(Point const &x0, DirectionVector const &v0, Point &end,
-                                   DirectionVector &endDir, Plane const &plane,
-                                   LengthType const step, EnvironmentBase const &env);
+                                   DirectionVector &endDir, LengthType &pathLength, double &avgN,
+                                   Plane const &plane, LengthType const step, EnvironmentBase const &env);
 
     /*
     Finds the intersection with the plane using `FindIntersectionWithPlane` and gives
@@ -218,6 +218,7 @@ namespace c8_tracer
     */
     std::tuple<double, double> ReflectOffPlane(Point const &x0, DirectionVector const &v0,
                                                Point &end, DirectionVector &endDir,
+                                               LengthType &pathLength, double &avgN,
                                                Plane const &plane, LengthType const step,
                                                EnvironmentBase const &env);
 
@@ -248,6 +249,7 @@ namespace c8_tracer
     */
     std::tuple<double, double> TransmitThroughPlane(Point const &x0, DirectionVector const &v0,
                                                     Point &end, DirectionVector &endDir,
+                                                    LengthType &pathLength, double &avgN,
                                                     Plane const &plane, LengthType const step,
                                                     EnvironmentBase const &env);
 

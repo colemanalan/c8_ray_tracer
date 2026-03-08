@@ -572,6 +572,7 @@ namespace c8_tracer
 
   inline void RayTracer2D::FindIntersectionWithPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
@@ -580,8 +581,6 @@ namespace c8_tracer
     TRACER_LOG_TRACE("x0 " + str(x0) + ", v0 " + str(v0));
     constexpr uint kMaxInitSteps = 10; // number of initial steps for bounding root
 
-    LengthType pathLength;
-    double avgN;
     LengthType initStepSize = step;
     auto const f0 = DistToPlane(plane, x0);
     auto f1 = DistToPlane(plane, end);
@@ -625,12 +624,13 @@ namespace c8_tracer
 
   inline std::tuple<double, double> RayTracer2D::TransmitThroughPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
     TRACER_LOG_TRACE("Performing transmission starting at x0: " + str(x0) + " v0: " +
                      str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
 
-    FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
+    FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, plane, step, env);
     TRACER_LOG_ALL("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
     auto const n1 = env.get_n(x0);
@@ -688,12 +688,13 @@ namespace c8_tracer
 
   inline std::tuple<double, double> RayTracer2D::ReflectOffPlane(
       Point const &x0, DirectionVector const &v0, Point &end, DirectionVector &endDir,
+      LengthType &pathLength, double &avgN,
       Plane const &plane, LengthType const step, EnvironmentBase const &env)
   {
 
     TRACER_LOG_TRACE("Performing reflection starting at x0: " + str(x0) + " v0: " +
                      str(v0) + " ending at xf " + str(end) + " vf: " + str(endDir));
-    FindIntersectionWithPlane(x0, v0, end, endDir, plane, step, env);
+    FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, plane, step, env);
 
     TRACER_LOG_TRACE("Intersecting plane at xf " + str(end) + " vf: " + str(endDir));
 
@@ -937,7 +938,7 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered reflection loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = ReflectOffPlane(x0, v0, end, endDir, pathLength, avgN, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -945,7 +946,7 @@ namespace c8_tracer
           {
             TRACER_LOG_TRACE("Entered transmission loop between " +
                              str(x0) + " and " + str(end) + ", step size " + str(stepSize));
-            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, plane, stepSize, env);
+            auto [tempS, tempP] = TransmitThroughPlane(x0, v0, end, endDir, pathLength, avgN, plane, stepSize, env);
             fresnelS *= tempS;
             fresnelP *= tempP;
           }
@@ -973,10 +974,7 @@ namespace c8_tracer
       weightedIndexOfRefraction -= avgN * pathLength;
       propLength -= pathLength;
 
-      FindIntersectionWithPlane(x0, v0, end, endDir, Plane(target, axis_), stepSize, env);
-
-      avgN = 0.5 * (env.get_n(x0) + env.get_n(end));
-      pathLength = (end - x0).norm();
+      FindIntersectionWithPlane(x0, v0, end, endDir, pathLength, avgN, Plane(target, axis_), stepSize, env);
 
       weightedIndexOfRefraction += avgN * pathLength;
       propLength += pathLength;
