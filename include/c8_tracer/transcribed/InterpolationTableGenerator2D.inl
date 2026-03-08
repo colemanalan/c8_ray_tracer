@@ -53,8 +53,10 @@ namespace c8_tracer
     auto const refIndex = env_.get_n(antennaPos);
 
     // TODO: hard coded number of solutions
-    std::vector<RayTracingTable> tables(
-        2, RayTracingTable(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane));
+    std::vector<RayTracingTable> tables;
+    tables.reserve(2);
+    tables.emplace_back(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane);
+    tables.emplace_back(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane);
 
     for (auto &table : tables)
     {

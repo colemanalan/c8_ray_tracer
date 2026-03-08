@@ -13,6 +13,9 @@ namespace c8_tracer
   public:
     RayTracingTable(LengthType minR, LengthType maxR, uint nRBins, LengthType minZ,
                     LengthType maxZ, uint nZBins, Plane const &plane);
+    RayTracingTable(RayTracingTable &&) noexcept = default;
+    RayTracingTable &operator=(RayTracingTable &&) noexcept = default;
+
     ~RayTracingTable();
 
     // Setters
@@ -70,15 +73,15 @@ namespace c8_tracer
     std::vector<LengthType> z_;
 
     // Flat table accessors
-    inline size_t index(uint ir, uint iz) const { return iz * nRBins_ + ir; }
+    inline size_t index(uint ir, uint iz) const noexcept { return iz * nRBins_ + ir; }
 
     // Tables
-    std::vector<double> launch_;
-    std::vector<double> receive_;
-    std::vector<LengthType> length_;
-    std::vector<TimeType> duration_;
-    std::vector<double> fresnelS_;
-    std::vector<double> fresnelP_;
+    std::unique_ptr<double[]> launch_;
+    std::unique_ptr<double[]> receive_;
+    std::unique_ptr<LengthType[]> length_;
+    std::unique_ptr<TimeType[]> duration_;
+    std::unique_ptr<double[]> fresnelS_;
+    std::unique_ptr<double[]> fresnelP_;
 
     Plane const plane_;
     double indexOfRefraction_ = 1.0;
@@ -86,14 +89,17 @@ namespace c8_tracer
     mutable long int totalCalls_ = 0;
     mutable long int untrackedCalls_ = 0;
 
+    template <typename T>
+    inline void FillWithNaN_(std::unique_ptr<T[]> &ptr, size_t N);
+
     // Interpolation methods
     template <typename T>
-    T InterpolateFromIndex_(std::vector<T> const &table, LengthType const &r,
-                            LengthType const &z, uint ir, uint iz) const;
+    T InterpolateFromIndex_(T const *table, LengthType const &r,
+                            LengthType const &z, uint ir, uint iz) const noexcept;
 
     template <typename T>
-    T Interpolate_(std::vector<T> const &table, LengthType const &r,
-                   LengthType const &z) const;
+    T Interpolate_(T const *table, LengthType const &r,
+                   LengthType const &z) const noexcept;
 
     std::tuple<LengthType, LengthType> GetRAndZ_(Point const &x) const;
 
