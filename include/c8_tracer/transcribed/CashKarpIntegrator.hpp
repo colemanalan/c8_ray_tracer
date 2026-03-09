@@ -28,7 +28,7 @@ namespace c8_tracer
   private:
     double minStep_;
     double maxStep_;
-    double inverseTol_;
+    double inverseTolSquared_;
 
     std::array<Vec3, 6> posPerStep_;
     std::array<Vec3, 6> dirPerStep_;
@@ -50,7 +50,7 @@ namespace c8_tracer
 
   public:
     CashKarpIntegrator(double minStep, double maxStep, double tolerance)
-        : minStep_(minStep), maxStep_(maxStep), inverseTol_(1.0 / tolerance)
+        : minStep_(minStep), maxStep_(maxStep), inverseTolSquared_(1.0 / tolerance / tolerance)
     {
     }
 
@@ -69,14 +69,14 @@ namespace c8_tracer
       {
         Step(startPos, startDir, endPos, endDir, posError, h, env, stepLength, avgN);
 
-        auto const ratio = posError.norm() * inverseTol_;
+        auto const ratio = posError.getSquaredNorm() * inverseTolSquared_;
 
         TRACER_LOG_ALL("Test step: pos " + endPos.to_string() + " dir " + endDir.to_string() +
                        " err " + std::to_string(posError.norm()) + " err-ratio " + std::to_string(ratio) +
                        " h " + std::to_string(h));
 
         hNew = h * 0.95 *
-               pow(ratio, -0.2); // update step size to keep error close to tolerance
+               pow(ratio, -0.1); // update step size to keep error close to tolerance
         hNew = std::max(0.1 * h, std::min(hNew, 5 * h));
         hNew = std::max(minStep_, std::min(hNew, maxStep_));
 
