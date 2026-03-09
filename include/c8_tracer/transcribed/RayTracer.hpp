@@ -14,25 +14,19 @@ namespace c8_tracer
   class RayTracer2D : public RayTracerBase
   {
   public:
-    /*
+    /**
     Finds the ray solutions between sets of points in space.
     This is implemented to solve problems where the gradient of the index of refraction
     only changes along one dimension.
 
-    Arguments:
-      axis:
-        axis along which the gradent changes
-      minStep:
-        minimum step size that can be take by the propagator
-      maxStep:
-        maximum step size that can be take by the propagator
-      tolerance:
-        relative uncertainty on the numerical integration for each step. The step size
+    @param axis axis along which the gradent changes
+    @param minStep minimum step size that can be take by the propagator
+    @param maxStep maximum step size that can be take by the propagator
+    @param tolerance relative uncertainty on the numerical integration for each step. The step size
     will be adjusted to keep it within this tolerance
-      brentRays:
-        how many initial rays to cast when creating a Brent-Method-based search
+    @param brentRays how many initial rays to cast when creating a Brent-Method-based search
 
-    */
+    **/
     RayTracer2D(DirectionVector const axis, LengthType const minStep,
                 LengthType const maxStep, double const tolerance, int const brentRays);
     ~RayTracer2D() {}
@@ -43,210 +37,157 @@ namespace c8_tracer
     */
     void AddReflectionLayer(Plane const layer);
 
-    /*
+    /**
     This is the main function which finds the solutions from `start` to `end`
 
-    Arguments:
-      start:
-        starting location of the launch point
-      end:
-        the target location for the propagation
-      env:
-        description of the refractive index and gradient
-    */
+    @param start starting location of the launch point
+    @param end the target location for the propagation
+    @param env description of the refractive index and gradient
+
+    @return SignalPath's for each identified solution
+    **/
     std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
                                              EnvironmentBase const &env) override;
 
     std::vector<SignalPath> GetSignalPaths(Point const &start, Point const &end,
                                            EnvironmentBase const &env) override;
 
-    /*
+    /**
     Finds the initial propagation direction such that a ray propagates from `start` to
     `end`. This does a simple numerical gradient descent starting from `seed` until
     convergence is found. If a solution is not found after several steps, this will return
     0
 
-    Arguments:
-      start:
-        starting location of the launch point
-      end:
-        the target location for the propagation
-      env:
-        description of the refractive index and gradient
-      seed:
-        initial guess of the launch vector
-      emit:
-        this will be updated with the found emit vector
-      receive:
-        this will be updated with the found receive vector
+    @param start starting location of the launch point
+    @param end the target location for the propagation
+    @param env description of the refractive index and gradient
+    @param seed initial guess of the launch vector
+    @param emit this will be updated with the found emit vector
+    @param receive this will be updated with the found receive vector
 
-    Returns:
-      if a valid solution was found
-    */
+    @return valid solution was found
+    **/
     bool FindEmitAndReceive(Point const &start, Point const &end, EnvironmentBase const &env,
                             DirectionVector const &seed, DirectionVector &emit,
                             DirectionVector &receive) override;
 
-    /*
+    /**
     Finds the initial propagation direction such that a ray propagates from `start` to
     `end`. This shoots several initial rays to find rays that bound the solutions and
     then used the Brent Method to ultimately find the optimal path(s). If no solutions
     are found after the initial rays are cast, the angular bounds will be updated
     to keep the interval that includes the top 3 solutions and casts another set of nRays
 
-    Arguments:
-      start:
-        starting location of the launch point
-      end:
-        the target location for the propagation
-      env:
-        description of the refractive index and gradient
-      nRays:
-        number of rays to shoot each iteration
-      maxIterations:
-        number of times that rays will be shot again if no solutions are found
+    @param start starting location of the launch point
+    @param end the target location for the propagation
+    @param env description of the refractive index and gradient
+    @param nRays number of rays to shoot each iteration
+    @param maxIterations number of times that rays will be shot again if no solutions are found
 
-    Returns:
-      tuple of a list of emit vectors and a list of receive vectors.
-    */
+   @return tuple of a list of emit vectors and a list of receive vectors
+    **/
     std::tuple<std::vector<DirectionVector>, std::vector<DirectionVector>>
     FindEmitAndReceiveBrent(
         Point const &start, Point const &end, EnvironmentBase const &env, uint nRays,
         int maxIterations);
 
-    /*
+    /**
     Propagates a ray from `start` until the lateral distance (see `Get2DProjection`)
     exceeds a specified value. This function handles the reflections off the known planes.
 
-    Arguments:
-      start:
-        starting location of the launch point
-      startDir:
-        initial direction of propagation at `start`
-      end:
-        this value will be updated with the final location
-      endDir:
-        this value will be update with direction at `end`
-      target:
-        the point that defines the maximum radius
-      env:
-        description of the refractive index and gradient
+    @param start starting location of the launch point
+    @param startDir initial direction of propagation at `start`
+    @param end this value will be updated with the final location
+    @param endDir this value will be update with direction at `end`
+    @param target the point that defines the maximum radius
+    @param env description of the refractive index and gradient
 
-    Returns:
-      the number of steps in the propagation from `start` to `end`
-    */
+    @return solution was found
+    **/
     bool ShootOneRayToMaximumR(Point const &start, DirectionVector const &startDir,
                                Point &end, DirectionVector &endDir, Point const &target,
                                EnvironmentBase const &env);
 
-    /*
+    /**
     Propagates a ray from `start` until reaching a minimum z value
     This function handles the reflections off the known planes.
 
-    Arguments:
-      start:
-        starting location of the launch point
-      startDir:
-        initial direction of propagation at `start`
-      end:
-        this value will be updated with the final location
-      endDir:
-        this value will be update with direction at `end`
-      target:
-        point at which the minimum z value will be considered
-      env:
-        description of the refractive index and gradient
+    @param start starting location of the launch point
+    @param startDir initial direction of propagation at `start`
+    @param end this value will be updated with the final location
+    @param endDir this value will be update with direction at `end`
+    @param target point at which the minimum z value will be considered
+    @param env description of the refractive index and gradient
 
-    Returns:
-      the number of steps in the propagation from `start` to `end`
-    */
+    @return solution was found
+    **/
     bool ShootOneRayToMinimumZ(Point const &start, DirectionVector const &startDir,
                                Point &end, DirectionVector &endDir, Point const &target,
                                EnvironmentBase const &env);
 
-    /*
+    /**
     This does a binary search to find the point on the plane and that the ray
     intersects. This function expects to only need to perform a single step
     and optimizes the step size such that the ray arrives at the plane
 
-    Arguments:
-      x0:
-        starting location of the launch point (should be only 1 step away from the
+    @param x0 starting location of the launch point (should be only 1 step away from the
         boundary)
-      startDir:
-        initial direction of propagation at `x0`
-      end:
-        this value will be updated with the final location (will be on the reflection
+    @param startDir initial direction of propagation at `x0`
+    @param end this value will be updated with the final location (will be on the reflection
         plane)
-      endDir:
-        this value will be update with direction at `end` after reflecting it
-      plane:
-        plane that is doing the reflecting
-      step:
-        maximum step size in the binary search
-      env:
-        description of the refractive index and gradient
-    */
+    @param endDir this value will be update with direction at `end` after reflecting it
+    @param pathLength will be filled with the geometric length of the path
+    @param avgN will be filled with the average index-of-refraction
+    @param plane plane that is doing the reflecting
+    @param step maximum step size in the binary search
+    @param env description of the refractive index and gradient
+    **/
     void FindIntersectionWithPlane(Point const &x0, DirectionVector const &v0, Point &end,
                                    DirectionVector &endDir, LengthType &pathLength, double &avgN,
                                    Plane const &plane, LengthType const step, EnvironmentBase const &env);
 
-    /*
+    /**
     Finds the intersection with the plane using `FindIntersectionWithPlane` and gives
     the final direction after reflection
 
-    Arguments:
-      x0:
-        starting location of the launch point (should be only 1 step away from the
+    @param x0 starting location of the launch point (should be only 1 step away from the
         boundary)
-      startDir:
-        initial direction of propagation at `x0`
-      end:
-        this value will be updated with the final location (will be on the reflection
+    @param startDir initial direction of propagation at `x0`
+    @param end this value will be updated with the final location (will be on the reflection
         plane)
-      endDir:
-        this value will be update with direction at `end` after reflecting it
-      plane:
-        plane that is doing the reflecting
-      step:
-        maximum step size in the binary search
-      env:
-        description of the refractive index and gradient
+    @param endDir this value will be update with direction at `end` after reflecting it
+    @param pathLength will be filled with the geometric length of the path
+    @param avgN will be filled with the average index-of-refraction
+    @param plane plane that is doing the reflecting
+    @param step maximum step size in the binary search
+    @param env description of the refractive index and gradient
 
-    Returns:
-      tuple of (Fresnel-S, Fresnel-P)
-    */
+    @return tuple of (Fresnel-S, Fresnel-P)
+    **/
     std::tuple<double, double> ReflectOffPlane(Point const &x0, DirectionVector const &v0,
                                                Point &end, DirectionVector &endDir,
                                                LengthType &pathLength, double &avgN,
                                                Plane const &plane, LengthType const step,
                                                EnvironmentBase const &env);
 
-    /*
+    /**
     Finds the intersection with the plane using `FindIntersectionWithPlane` and gives
     the final direction after transmission
 
-    Arguments:
-      x0:
-        starting location of the launch point (should be only 1 step away from the
+    @param x0 starting location of the launch point (should be only 1 step away from the
         boundary)
-      startDir:
-        initial direction of propagation at `x0`
-      end:
-        this value will be updated with the final location (will be on the reflection
+    @param startDir initial direction of propagation at `x0`
+    @param end this value will be updated with the final location (will be on the reflection
         plane)
-      endDir:
-        this value will be update with direction at `end` after reflecting it
-      plane:
-        plane that is doing the reflecting
-      step:
-        maximum step size in the binary search
-      env:
-        description of the refractive index and gradient
+    @param endDir this value will be update with direction at `end` after reflecting it
+    @param pathLength will be filled with the geometric length of the path
+    @param avgN will be filled with the average index-of-refraction
+    @param plane plane that is doing the reflecting
+    @param step maximum step size in the binary search
+    @param env description of the refractive index and gradient
 
-    Returns:
-      tuple of (Fresnel-S, Fresnel-P)
-    */
+    @return tuple of (Fresnel-S, Fresnel-P)
+    **/
     std::tuple<double, double> TransmitThroughPlane(Point const &x0, DirectionVector const &v0,
                                                     Point &end, DirectionVector &endDir,
                                                     LengthType &pathLength, double &avgN,
@@ -264,9 +205,6 @@ namespace c8_tracer
     The radial distance from xf and xtest is returned
     */
     LengthType Get2DRadialDistance(Point const &x0, Point const &xf, Point const &xtest);
-
-    SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
-                             Point const &target, EnvironmentBase const &env) override;
 
     void PrintProfiling();
     void ResetProfiling();
@@ -287,11 +225,36 @@ namespace c8_tracer
 
     LengthType DistToPlane(Plane const &p, Point const &x) { return (x - p.getCenter()).dot(p.getNormal()); }
 
-    // Main function for propagating rays forward and handling effects during propagation
+    /**
+    Main function for propagating rays forward and handling effects during propagation. Ray will contine
+    to propagate forward unless:
+
+    - ray crosses a reflection/transmission boundary
+    - the sign of `stopMethod` changes between the start and end of step (i.e. crosses boundary)
+
+    @param start starting location of the launch point
+    @param startDir initial direction of propagation at `start`
+    @param target defines the location of the boundary
+    @param env description of the refractive index and gradient
+    @param stopMethod function that accepts a `Point` and returns a signed `LengthType`. This function defines the distance
+        to the boundary and the function will try to find a point where this returns ~=0
+    @param accumulate defines if the signal path should actually contain intermediate points or just has the macroscopic
+        properties (start/end/length/duration)
+    @param maxSteps maximum number of steps that will be taken before the ray is considered solution-less
+
+    @return SignalPath for the ray (note that the intermediate points may not be filled if `accumulate==false`)
+    **/
     SignalPath ShootOneRay(Point const &start, DirectionVector const &startDir,
                            Point const &target, EnvironmentBase const &env,
                            std::function<LengthType(Point const &)> stopMethod,
                            bool const accumulate, uint const maxSteps);
+
+    /**
+     * Thin wrapper for calling `ShootOneRay` with `accumulate=true` and ensuring that the call is valid
+     * i.e. that `start` is "above" target`
+     */
+    SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
+                             Point const &target, EnvironmentBase const &env) override;
 
     // Wrapper for the Adaptive step of the ray tracer
     void TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
