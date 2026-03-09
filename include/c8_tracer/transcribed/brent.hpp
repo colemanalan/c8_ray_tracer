@@ -9,6 +9,20 @@
 
 namespace c8_tracer
 {
+  /**
+   * Perform the Brent method for root-finding
+   *
+   * @param func function that takes a double and returns a signed function value.
+   * This function defines the root-to-be-found, `f(x)`, must return a `LengthType`
+   * @param a bounding value of the function argument corresponding to `faInit`
+   * @param b bounding value of the function argument corresponding to `fbInit`
+   * @param faInit function value for argument `x=a`
+   * @param fbInit function value for argument `x=b`
+   * @param tol will stop when the search bounds are within `tol` of each other
+   * @param max_iter will fail if this many steps have been taken, regardless of found root
+   *
+   * @return the x-value corresponding to the root of `func`
+   */
   double BrentMethod(
       std::function<LengthType(double)> func, double a, double b,
       LengthType faInit, LengthType fbInit, double tol = 1e-6,
