@@ -76,7 +76,7 @@ for itable, table in enumerate(tables):
         continue
 
     print(f"------- Ray solution {itable + 1} -------")
-    path = table.GetSignalPath(target_pos, 1.0, 1.0)
+    path = table.GetSignalPath(target_pos, 1.0)
     print("    Launch:   ", path.emit)
     print("    Receive:  ", path.receive)
     print("    Duration: ", path.propagation_time)
