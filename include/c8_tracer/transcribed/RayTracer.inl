@@ -52,7 +52,7 @@ namespace c8_tracer
     reflectionLayers_.push_back(layer);
   }
 
-  inline std::vector<SignalPath> RayTracer2D::GetSignalPaths(Point const &sourceXX,
+  inline std::vector<SignalPath> RayTracer2D::GetSignalPathsBrent(Point const &sourceXX,
                                                              Point const &targetXX,
                                                              EnvironmentBase const &env)
   {
@@ -96,7 +96,7 @@ namespace c8_tracer
     return signalPaths;
   }
 
-  inline std::vector<SignalPath> RayTracer2D::PropagateToPoint(Point const &sourceXX,
+  inline std::vector<SignalPath> RayTracer2D::GetSignalPathsNGD(Point const &sourceXX,
                                                                Point const &targetXX,
                                                                EnvironmentBase const &env)
   {

@@ -105,10 +105,10 @@ namespace c8_tracer
 
         std::vector<SignalPath> signalPaths;
         if (method == SolutionMethod::Brent)
-          signalPaths = rayTracer_.GetSignalPaths(start, target, env_);
+          signalPaths = rayTracer_.GetSignalPathsBrent(start, target, env_);
 
         if (method == SolutionMethod::NGD)
-          signalPaths = rayTracer_.PropagateToPoint(start, target, env_);
+          signalPaths = rayTracer_.GetSignalPathsNGD(start, target, env_);
 
         if (signalPaths.empty())
         {

@@ -38,7 +38,8 @@ namespace c8_tracer
         void AddReflectionLayer(Plane const layer);
 
         /**
-         * This is the main function which finds the solutions from `start` to `end`
+         * This is the main function which finds the solutions from `start` to `end` using
+         * numerical gradient descent to find solutions
          *
          * @param start starting location of the launch point
          * @param end the target location for the propagation
@@ -46,11 +47,21 @@ namespace c8_tracer
          *
          * @return SignalPath's for each identified solution
          **/
-        std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
-                                                 EnvironmentBase const &env) override;
+        std::vector<SignalPath> GetSignalPathsNGD(Point const &start, Point const &end,
+                                                  EnvironmentBase const &env) override;
 
-        std::vector<SignalPath> GetSignalPaths(Point const &start, Point const &end,
-                                               EnvironmentBase const &env) override;
+        /**
+         * This is the main function which finds the solutions from `start` to `end` using
+         * the Brent Method for finding solutions
+         *
+         * @param start starting location of the launch point
+         * @param end the target location for the propagation
+         * @param env description of the refractive index and gradient
+         *
+         * @return SignalPath's for each identified solution
+         **/
+        std::vector<SignalPath> GetSignalPathsBrent(Point const &start, Point const &end,
+                                                    EnvironmentBase const &env) override;
 
         /**
          * Finds the initial propagation direction such that a ray propagates from `start` to

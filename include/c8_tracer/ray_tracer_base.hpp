@@ -36,7 +36,7 @@ namespace c8_tracer
       env:
         description of the refractive index and gradient
     */
-    virtual std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
+    virtual std::vector<SignalPath> GetSignalPathsNGD(Point const &start, Point const &end,
                                                      EnvironmentBase const &env) = 0;
 
     /*
@@ -73,7 +73,7 @@ namespace c8_tracer
                                      Point const &target, EnvironmentBase const &env) = 0;
 
     /*
-    This is the replacement of PropagateToPoint to get ray paths from `start` to `end`
+    This is the replacement of GetSignalPathsNGD to get ray paths from `start` to `end`
 
     Arguments:
       start:
@@ -83,7 +83,7 @@ namespace c8_tracer
       env:
         description of the refractive index and gradient
     */
-    virtual std::vector<SignalPath> GetSignalPaths(Point const &start, Point const &end,
+    virtual std::vector<SignalPath> GetSignalPathsBrent(Point const &start, Point const &end,
                                                    EnvironmentBase const &env) = 0;
   };
 
