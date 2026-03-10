@@ -15,10 +15,10 @@ void bind_ray_tracing_table(py::module_ &m)
      py::module_ tables = m.def_submodule("tables", "Tables to hold pre-calculated ray-tracing tables");
 
      py::class_<RayTracingTable>(tables, "RayTracingTable")
-         .def(py::init<LengthType, LengthType, uint, LengthType, LengthType, uint, const Plane &>(),
+         .def(py::init<LengthType, LengthType, uint, LengthType, LengthType, uint, const Plane &, double>(),
               py::arg("minR"), py::arg("maxR"), py::arg("nRBins"),
               py::arg("minZ"), py::arg("maxZ"), py::arg("nZBins"),
-              py::arg("plane"))
+              py::arg("plane"), py::arg("nCenter"))
 
          // Setters
          .def("SetLaunch", &RayTracingTable::SetLaunch)
@@ -55,7 +55,6 @@ void bind_ray_tracing_table(py::module_ &m)
          // Utility
          .def("ContainsPoint", &RayTracingTable::ContainsPoint)
          .def("GetSignalPath", &RayTracingTable::GetSignalPath)
-         .def("SetIndexOfRefraction", &RayTracingTable::SetIndexOfRefraction)
          .def("GetIndexOfRefraction", &RayTracingTable::GetIndexOfRefraction)
          .def("Print", &RayTracingTable::Print)
          .def("ResetTables", &RayTracingTable::ResetTables);

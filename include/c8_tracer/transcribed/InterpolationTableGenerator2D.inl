@@ -55,13 +55,8 @@ namespace c8_tracer
     // TODO: hard coded number of solutions
     std::vector<RayTracingTable> tables;
     tables.reserve(2);
-    tables.emplace_back(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane);
-    tables.emplace_back(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane);
-
-    for (auto &table : tables)
-    {
-      table.SetIndexOfRefraction(refIndex);
-    }
+    tables.emplace_back(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane, refIndex);
+    tables.emplace_back(minR, maxR, nRBins, minZ, maxZ, nZBins, antennaPlane, refIndex);
 
     // Get a unit vector that is perpendicular to the symmetry axis
     DirectionVector perpUnit = DirectionVector({0, 1, 0}).cross(axis_);

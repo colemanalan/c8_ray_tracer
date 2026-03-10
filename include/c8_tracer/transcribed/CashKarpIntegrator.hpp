@@ -23,6 +23,15 @@ namespace c8_tracer
     }
   };
 
+  /**
+   * Performs the numerical integration through a changing index of refraction
+   * Solves the equations `\dot{x} = \hat{v} / n` and `\dot{v} = Grad(n) / n^2`
+   *
+   * @param minStep minimum optical step size
+   * @param maxStep maximum optical step size
+   * @param tolerance
+   *
+   */
   class CashKarpIntegrator
   {
   private:
@@ -49,11 +58,35 @@ namespace c8_tracer
                              277. / 14336., 1. / 4.};
 
   public:
+    /**
+     * @param minStep minimum optical step size
+     * @param maxStep maximum optical step size
+     * @param tolerance maximum tolerance in the estimated uncertainty in the step location
+     */
     CashKarpIntegrator(double minStep, double maxStep, double tolerance)
         : minStep_(minStep), maxStep_(maxStep), inverseTolSquared_(1.0 / tolerance / tolerance)
     {
     }
+    CashKarpIntegrator() = delete;
 
+    /**
+     * Takes a step through a medium with a changing index of refraction and will adjust the size
+     * of the step such that a chosen error tolerance on the final location will be kept. The step
+     * size will be increased so that ideally this tolerance will be the error at each step
+     * so ensure that this value is below what you are willing to accumulate over many such steps
+     *
+     * @param startPos starting location of the step
+     * @param startDir initial direction of propagation at `start`
+     * @param endPos will be filled with the position of the end location of the step
+     * @param endDir will be filled with the direction at the end of the step
+     * @param h0 optical step size for the RK integration step. If `updateStep` is true, this
+     * value will be updated to the new step size after the adaptive refinement
+     * @param env the environment that can be queried for `n` and `Grad[n]`
+     * @param stepLength will be filled with the total geometric length of the path. Note
+     * that this is, in general, longer than `|start - end|` due to bending
+     * @param avgN average refractive index over the path
+     * @param updateStep choose if `h0` will be updated with the adaptive size (recommended)
+     */
     void AdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
                       Vec3 &endDir, double &h0, EnvironmentBase const &env,
                       LengthType &stepLength, double &avgN,
@@ -97,6 +130,20 @@ namespace c8_tracer
       }
     }
 
+    /**
+     * Takes a step through a medium with a changing index of refraction using a RK(5) integrator
+     *
+     * @param startPos starting location of the step
+     * @param startDir initial direction of propagation at `start`
+     * @param endPos will be filled with the position of the end location of the step
+     * @param endDir will be filled with the direction at the end of the step
+     * @param posError the estimated uncertainty in `endPos`
+     * @param h optical step size for the RK integration step
+     * @param env the environment that can be queried for `n` and `Grad[n]`
+     * @param stepLength will be filled with the total geometric length of the path. Note
+     * that this is, in general, longer than `|start - end|` due to bending
+     * @param avgN average refractive index over the path
+     */
     void Step(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
               Vec3 &endDir, Vec3 &posError, double const h,
               EnvironmentBase const &env,

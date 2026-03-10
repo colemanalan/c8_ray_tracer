@@ -10,9 +10,9 @@ namespace c8_tracer
 
   inline RayTracingTable::RayTracingTable(LengthType minR, LengthType maxR, uint nRBins,
                                           LengthType minZ, LengthType maxZ, uint nZBins,
-                                          Plane const &plane)
+                                          Plane const &plane, double nCenter)
       : nRBins_(nRBins), nZBins_(nZBins), maxR_(maxR), minR_(minR),
-        maxZ_(maxZ), minZ_(minZ), r_(nRBins), z_(nZBins), plane_(plane)
+        maxZ_(maxZ), minZ_(minZ), r_(nRBins), z_(nZBins), plane_(plane), indexOfRefraction_(nCenter)
   {
 
     if (nRBins_ < 2)
@@ -228,15 +228,14 @@ namespace c8_tracer
     return true;
   }
 
-  inline SignalPath RayTracingTable::GetSignalPath(Point const &x0, double n0,
-                                                   double nf) const
+  inline SignalPath RayTracingTable::GetSignalPath(Point const &x0, double n0) const
   {
     totalCalls_++;
     // Do not extrapolate
     if (!ContainsPoint(x0))
     {
       untrackedCalls_++;
-      return SignalPath(std::numeric_limits<double>::infinity(), 1.0, n0, nf,
+      return SignalPath(std::numeric_limits<double>::infinity(), 1.0, n0, indexOfRefraction_,
                         plane_.getNormal(), plane_.getNormal(),
                         std::numeric_limits<double>::infinity(), Path(x0), 1.0,
                         1.0);
@@ -247,7 +246,7 @@ namespace c8_tracer
     auto const length = InterpolateFromIndex_(length_.get(), r, z, ir, iz);
     if (std::isnan(length))
     {
-      return SignalPath(std::numeric_limits<double>::infinity(), 1.0, n0, nf,
+      return SignalPath(std::numeric_limits<double>::infinity(), 1.0, n0, indexOfRefraction_,
                         plane_.getNormal(), plane_.getNormal(),
                         std::numeric_limits<double>::infinity(), Path(x0), 1.0,
                         1.0);
@@ -270,7 +269,7 @@ namespace c8_tracer
 
     return SignalPath(duration,
                       duration * constants::c / length, // average n
-                      n0, nf, startDir, endDir, length, Path(x0), fresnelS, fresnelP);
+                      n0, indexOfRefraction_, startDir, endDir, length, Path(x0), fresnelS, fresnelP);
   }
 
   inline bool RayTracingTable::IsValid(uint ir, uint iz, bool warn = false) const

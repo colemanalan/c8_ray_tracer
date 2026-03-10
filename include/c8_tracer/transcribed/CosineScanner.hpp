@@ -3,22 +3,35 @@ namespace c8_tracer
 
 #define STOP_CLOSE_LENGTH 0.000005 // max distance for stopping criteria in Brent Loops
 
+  /**
+   * Utility function for Brent root finding searches. This generates and caches potential direction
+   * and the function results
+   */
   class CosineScanner
   {
   public:
+    /**
+     * @param cosMin minimum cosine value
+     * @param cosMax maximum cosine value
+     */
     CosineScanner(double cosMin, double cosMax)
         : cosMin_(cosMin), cosMax_(cosMax) {}
 
+    CosineScanner() = delete;
+
+    // check if the cosine value `x` has already been cached
     bool Has(double x) const
     {
       return index_.count(x) > 0;
     }
 
+    // get the function result for cosine-value `x`
     LengthType Get(double x) const
     {
       return values_[index_.at(x)].second;
     }
 
+    // store the function value `err` forcosine-value `x`
     void Cache(double x, LengthType err)
     {
       auto it = index_.find(x);
@@ -33,6 +46,7 @@ namespace c8_tracer
 
     size_t CacheSize() const { return values_.size(); }
 
+    // removes all invalid results (i.e. nan/inf from the cache)
     void RemoveIfInvalid()
     {
       // compact in-place
@@ -53,6 +67,7 @@ namespace c8_tracer
       values_.resize(write);
     }
 
+    // returns a list of sorted cosine values
     std::vector<double> SortedCosines() const
     {
       std::vector<double> xs;
@@ -65,6 +80,8 @@ namespace c8_tracer
       std::sort(xs.begin(), xs.end());
       return xs;
     }
+
+    // returns a vector of start-stop pairs corresponding to where the sign changes
     std::vector<std::pair<double, double>> FindSignChangeIntervals() const
     {
       auto xs = SortedCosines();

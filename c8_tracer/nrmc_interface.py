@@ -121,7 +121,7 @@ def CreateNRMCInterpolationTable(
     :param nrmc_model: any NRMC ice model that inherits from `IceModel`
 
     :param ant_position_list: list of antenna positions, one ray tracing table will be
-    created for each one
+    created for each unique z-value
     :param maxR: maximum radius to be tabulated w.r.t. each antenna
     :param minZ: the minimum z to be tabulated
     :param maxZ: the maximum z to be tabulated
@@ -131,7 +131,7 @@ def CreateNRMCInterpolationTable(
     :param max_step: largest step size that will be taken during propagation (meters)
     :param tolerance: relative error tolerance that defines the adaptive step size
     :param nRays: defines how many rays are cast in the initial scan each time a solution
-    is searched for (more will run slowed but will fail less often)
+    is searched for (more will run slower but will fail less often)
 
     :return get_path_to_antenna: function that can be queried, `get_path_to_antenna(start_pos, ant_pos)`
     and will return two signals paths. Signals paths that are `None` denote no solution
@@ -232,8 +232,8 @@ def ConvertSignalPath(signal_path: SignalPath):
     return dt, length, emit, receive
 
 
-def _GetDictKey(pos: np.ndarray):
+def _GetDictKey(pos: np.ndarray) -> float:
     """
-    Helper function to go from
+    Helper function to go from position to a dict key
     """
     return pos[2]
