@@ -142,14 +142,13 @@ class C8RayTracerIndividual(ray_tracing_base):
 
         dz = np.abs(path[:, 2] - z_ref)
 
-        if dz > 1e-2:
+        if not np.any(dz < 1e-2):
             return None
 
         imin = np.argmin(dz)
         dr = path[imin] - path[imin - 1]
         dr /= np.linalg.norm(dr)
 
-        # TODO: which is the angle they are consisering
         return abs(np.arccos(dr[2]))
 
     def get_path_length(self, iS, analytic=False):
