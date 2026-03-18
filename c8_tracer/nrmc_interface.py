@@ -93,7 +93,7 @@ def CreateNRMCWrappedRayTracer(
         start = Vec3(pos1[0], pos1[1], pos1[2])
         end = Vec3(pos2[0], pos2[1], pos2[2])
 
-        paths: list[SignalPath] = ray_tracer.GetSignalPaths(start, end, env)
+        paths: list[SignalPath] = ray_tracer.GetSignalPathsBrent(start, end, env)
         paths.sort(key=lambda x: x.R_distance)
 
         return paths
@@ -198,7 +198,7 @@ def CreateNRMCInterpolationTable(
                 signal_paths.append(None)  # None for no solution paths
 
             signal_path: SignalPath = table.GetSignalPath(
-                r_i, env.get_n(r_i), env.get_n(r_f)
+                r_i, env.get_n(r_f)
             )
             signal_paths.append(signal_path)
 

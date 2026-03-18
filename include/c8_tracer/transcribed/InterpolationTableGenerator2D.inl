@@ -4,12 +4,13 @@
 #include "c8_tracer/logger.hpp"
 #include "c8_tracer/signal_path.hpp"
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
+#include "c8_tracer/transcribed/RayTracer.hpp"
 #include "c8_tracer/transcribed/RayTracingTable.hpp"
 
 namespace c8_tracer
 {
 
-  inline InterpolationTableGenerator2D::InterpolationTableGenerator2D(RayTracerBase &rayTracer,
+  inline InterpolationTableGenerator2D::InterpolationTableGenerator2D(RayTracer2D &rayTracer,
                                                                       EnvironmentBase const &env)
       : rayTracer_(rayTracer), axis_(rayTracer.GetAxis().normalized()), env_(env) {}
 
@@ -105,10 +106,10 @@ namespace c8_tracer
 
         std::vector<SignalPath> signalPaths;
         if (method == SolutionMethod::Brent)
-          signalPaths = rayTracer_.GetSignalPaths(start, target, env_);
+          signalPaths = rayTracer_.GetSignalPathsBrent(start, target, env_);
 
         if (method == SolutionMethod::NGD)
-          signalPaths = rayTracer_.PropagateToPoint(start, target, env_);
+          signalPaths = rayTracer_.GetSignalPathsNGD(start, target, env_);
 
         if (signalPaths.empty())
         {
@@ -212,7 +213,7 @@ namespace c8_tracer
           DirectionVector emit = seed; // init values
           DirectionVector receive = seed;
           bool const foundSolution =
-              rayTracer_.FindEmitAndReceive(start, target, env_, seed, emit, receive);
+              rayTracer_.FindEmitAndReceiveNGD(start, target, env_, seed, emit, receive);
 
           auto const path = (GetZ_(start) > GetZ_(target))
                                 ? rayTracer_.GetSignalPath(start, emit, target, env_)

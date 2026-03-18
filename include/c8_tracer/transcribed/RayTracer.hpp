@@ -4,21 +4,28 @@
 
 #include "c8_tracer/environment.hpp"
 #include "c8_tracer/plane.hpp"
-#include "c8_tracer/ray_tracer_base.hpp"
 #include "c8_tracer/transcribed/CashKarpIntegrator.hpp"
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
+#include "c8_tracer/signal_path.hpp"
 
 namespace c8_tracer
 {
 
-    class RayTracer2D : public RayTracerBase
+    enum SolutionMethod
+    {
+        NGD = 0,
+        Brent = 1
+    };
+
+    class RayTracer2D
     {
     public:
         /**
         * Finds the ray solutions between sets of points in space.
         * This is implemented to solve problems where the gradient of the index of refraction
-        * only changes along one dimension.
-
+        * only changes along one dimension. By default, this ray tracer will use the Brent Method
+        * for finding possible ray solutions
+        *
         * @param axis axis along which the gradent changes
         * @param minStep minimum step size that can be take by the propagator
         * @param maxStep maximum step size that can be take by the propagator
@@ -27,18 +34,33 @@ namespace c8_tracer
         * @param brentRays how many initial rays to cast when creating a Brent-Method-based search
 
         **/
-        RayTracer2D(DirectionVector const axis, LengthType const minStep,
+        RayTracer2D(DirectionVector const &axis, LengthType const minStep,
                     LengthType const maxStep, double const tolerance, int const brentRays);
         ~RayTracer2D() {}
 
-        /*
-         * Adds a reflection layer for the propagation. Rays only reflect such that they
-         * stay on the side of the plane where the normal vector is pointing
+        /**
+         * Propagates the ray forward from the starting point and in the starting direction.
+         * Will propagate forward until the z-coordinate matches that of the target.
+         *
+         * WARNING: This function does not make an attempt to FIND the solution and
+         * instead assumes that `startDir` is the correct one to reach `target`
+         *
+         *
+         * @param start starting location of the launch point
+         * @param startDir initial direction of propagation at `start`
+         * @param target the target location for the propagation
+         * @param env description of the refractive index and gradient
          */
-        void AddReflectionLayer(Plane const layer);
+        SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
+                                 Point const &target, EnvironmentBase const &env);
 
         /**
-         * This is the main function which finds the solutions from `start` to `end`
+         * Will find two solutions from `start` to `end` using
+         * numerical gradient descent (NGD) to find solutions.
+         *
+         * WARNING: this function currently makes some assumptions about the
+         * shape of the index of refractions (that it is like compressed ice) and
+         * is less generic than the Brent Method
          *
          * @param start starting location of the launch point
          * @param end the target location for the propagation
@@ -46,15 +68,25 @@ namespace c8_tracer
          *
          * @return SignalPath's for each identified solution
          **/
-        std::vector<SignalPath> PropagateToPoint(Point const &start, Point const &end,
-                                                 EnvironmentBase const &env) override;
+        std::vector<SignalPath> GetSignalPathsNGD(Point const &start, Point const &end,
+                                                  EnvironmentBase const &env);
 
-        std::vector<SignalPath> GetSignalPaths(Point const &start, Point const &end,
-                                               EnvironmentBase const &env) override;
+        /**
+         * Finds all the solutions from `start` to `end` using the Brent root-finding
+         * method.
+         *
+         * @param start starting location of the launch point
+         * @param end the target location for the propagation
+         * @param env description of the refractive index and gradient
+         *
+         * @return SignalPath's for each identified solution
+         **/
+        std::vector<SignalPath> GetSignalPathsBrent(Point const &start, Point const &end,
+                                                    EnvironmentBase const &env);
 
         /**
          * Finds the initial propagation direction such that a ray propagates from `start` to
-         * `end`. This does a simple numerical gradient descent starting from `seed` until
+         * `end`. This does a simple numerical gradient descent (NGD) starting from `seed` until
          * convergence is found. If a solution is not found after several steps, this will return
          * 0
          *
@@ -67,9 +99,9 @@ namespace c8_tracer
          *
          * @return valid solution was found
          **/
-        bool FindEmitAndReceive(Point const &start, Point const &end, EnvironmentBase const &env,
-                                DirectionVector const &seed, DirectionVector &emit,
-                                DirectionVector &receive) override;
+        bool FindEmitAndReceiveNGD(Point const &start, Point const &end, EnvironmentBase const &env,
+                                   DirectionVector const &seed, DirectionVector &emit,
+                                   DirectionVector &receive);
 
         /**
          * Finds the initial propagation direction such that a ray propagates from `start` to
@@ -209,9 +241,20 @@ namespace c8_tracer
         void PrintProfiling();
         void ResetProfiling();
 
-        LengthType _GetZ(Point const &p) const { return p.dot(axis_); }
+        // Gets the projection of p with the axis of symmetry
+        LengthType GetZ(Point const &p) const { return p.dot(axis_); }
+
+        // Returns the axis of symmetry
+        DirectionVector const &GetAxis() const { return axis_; }
+
+        /*
+         * Adds a reflection layer for the propagation. Rays only reflect such that they
+         * stay on the side of the plane where the normal vector is pointing
+         */
+        void AddReflectionLayer(Plane const layer);
 
     private:
+        DirectionVector axis_;
         CashKarpIntegrator tracer_;
         std::vector<Plane> reflectionLayers_;
 
@@ -249,13 +292,6 @@ namespace c8_tracer
                                Point const &target, EnvironmentBase const &env,
                                std::function<LengthType(Point const &)> stopMethod,
                                bool const accumulate, uint const maxSteps);
-
-        /**
-         * Thin wrapper for calling `ShootOneRay` with `accumulate=true` and ensuring that the call is valid
-         * i.e. that `start` is "above" target`
-         */
-        SignalPath GetSignalPath(Point const &start, DirectionVector const &startDir,
-                                 Point const &target, EnvironmentBase const &env) override;
 
         // Wrapper for the Adaptive step of the ray tracer
         void TakeAdaptiveStep(Vec3 const &startPos, Vec3 const &startDir, Vec3 &endPos,
