@@ -2,7 +2,7 @@
 
 #include "c8_tracer/signal_path.hpp"
 #include "c8_tracer/environment.hpp"
-#include "c8_tracer/ray_tracer_base.hpp"
+#include "c8_tracer/transcribed/RayTracer.hpp"
 #include "c8_tracer/transcribed/c8_typedefs.hpp"
 #include "c8_tracer/transcribed/RayTracingTable.hpp"
 
@@ -20,7 +20,7 @@ namespace c8_tracer
      * @param rayTracer instance of a ray tracer to be used
      * @param env the environment object that can be queried for n and Grad[n]
      */
-    InterpolationTableGenerator2D(RayTracerBase &rayTracer, EnvironmentBase const &env);
+    InterpolationTableGenerator2D(RayTracer2D &rayTracer, EnvironmentBase const &env);
     ~InterpolationTableGenerator2D() {}
 
     /**
@@ -67,7 +67,7 @@ namespace c8_tracer
     // use the current entries in the table to find the solution
     double EstimateLaunchAngle_(uint ir, uint iz, RayTracingTable &table) const;
 
-    RayTracerBase &rayTracer_;
+    RayTracer2D &rayTracer_;
     DirectionVector const axis_;
     EnvironmentBase const &env_;
 

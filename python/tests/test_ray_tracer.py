@@ -138,19 +138,19 @@ class TestNRMCInterface(unittest.TestCase):
         tracer = self.get_tracer(True)
 
         # uniform environment
-        paths_even = tracer.PropagateToPoint(
+        paths_even = tracer.GetSignalPathsNGD(
             self.start, self.target_even, self.env_flat
         )
         self.assertEqual(len(paths_even), 2)
         self.assertNotAlmostEqual(paths_even[0].emit.dot(paths_even[1].emit), 1.0)
 
-        paths_general = tracer.PropagateToPoint(
+        paths_general = tracer.GetSignalPathsNGD(
             self.start, self.target_general, self.env_flat
         )
         self.assertEqual(len(paths_general), 2)
         self.assertNotAlmostEqual(paths_general[0].emit.dot(paths_general[1].emit), 1.0)
 
-        paths = tracer.PropagateToPoint(
+        paths = tracer.GetSignalPathsNGD(
             self.start, self.target_across_plane, self.env_flat
         )
         self.assertEqual(
@@ -158,12 +158,12 @@ class TestNRMCInterface(unittest.TestCase):
         )  # nothing to change direction to allow two for transmission
 
         # exponential environment
-        paths = tracer.PropagateToPoint(self.start, self.target_even, self.env_expo)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_even, self.env_expo)
         self.assertEqual(len(paths), 2)
 
-        paths = tracer.PropagateToPoint(self.start, self.target_general, self.env_expo)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_general, self.env_expo)
         self.assertEqual(len(paths), 2)
-        paths = tracer.PropagateToPoint(
+        paths = tracer.GetSignalPathsNGD(
             self.start, self.target_across_plane, self.env_expo
         )
         self.assertEqual(len(paths), 2)
@@ -172,37 +172,37 @@ class TestNRMCInterface(unittest.TestCase):
         tracer = self.get_tracer(True)
 
         # uniform environment
-        paths = tracer.GetSignalPaths(self.start, self.target_even, self.env_flat)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_even, self.env_flat)
         self.assertEqual(len(paths), 2)
 
-        paths = tracer.GetSignalPaths(self.start, self.target_general, self.env_flat)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_general, self.env_flat)
         self.assertEqual(len(paths), 2)
 
-        paths = tracer.GetSignalPaths(
+        paths = tracer.GetSignalPathsNGD(
             self.start, self.target_across_plane, self.env_flat
         )  # only one solution due to being on far side of plane
         self.assertEqual(len(paths), 1)
 
         # exponential environment
-        paths = tracer.GetSignalPaths(self.start, self.target_even, self.env_expo)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_even, self.env_expo)
         self.assertEqual(len(paths), 2)
 
-        paths = tracer.GetSignalPaths(self.start, self.target_general, self.env_expo)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_general, self.env_expo)
         self.assertEqual(len(paths), 2)
 
-        paths = tracer.GetSignalPaths(
+        paths = tracer.GetSignalPathsNGD(
             self.start, self.target_across_plane, self.env_expo
         )
         self.assertEqual(len(paths), 2)
 
     def test_Reversable(self):
         tracer = self.get_tracer(True)
-        paths_start_target = tracer.GetSignalPaths(
+        paths_start_target = tracer.GetSignalPathsNGD(
             self.start, self.target_general, self.env_flat
         )
         self.assertEqual(len(paths_start_target), 2)
 
-        paths_target_start = tracer.GetSignalPaths(
+        paths_target_start = tracer.GetSignalPathsNGD(
             self.target_general, self.start, self.env_flat
         )
         self.assertEqual(len(paths_target_start), 2)
@@ -232,7 +232,7 @@ class TestNRMCInterface(unittest.TestCase):
 
     def test_CorrectLength(self):
         tracer = self.get_tracer(True)
-        paths = tracer.GetSignalPaths(self.start, self.target_general, self.env_flat)
+        paths = tracer.GetSignalPathsNGD(self.start, self.target_general, self.env_flat)
         self.assertEqual(len(paths), 2)
 
         dist = (self.start - self.target_general).norm()

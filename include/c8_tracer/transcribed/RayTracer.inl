@@ -18,12 +18,12 @@ namespace c8_tracer
 
 #define str std::to_string
 
-  inline RayTracer2D::RayTracer2D(DirectionVector const axis,
+  inline RayTracer2D::RayTracer2D(DirectionVector const &axis,
                                   LengthType const minStep = 0.0001,
                                   LengthType const maxStep = 10.0,
                                   double const tolerance = 1e-8,
                                   int const brentRays = 13)
-      : RayTracerBase(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays)
+      : axis_(axis), tracer_(minStep, maxStep, tolerance), nRays_(brentRays)
   {
     if (brentRays < 3)
     {
@@ -53,8 +53,8 @@ namespace c8_tracer
   }
 
   inline std::vector<SignalPath> RayTracer2D::GetSignalPathsBrent(Point const &sourceXX,
-                                                             Point const &targetXX,
-                                                             EnvironmentBase const &env)
+                                                                  Point const &targetXX,
+                                                                  EnvironmentBase const &env)
   {
     std::vector<SignalPath> signalPaths;
     signalPaths.reserve(2);
@@ -63,7 +63,7 @@ namespace c8_tracer
     Point start = sourceXX;
     Point end = targetXX;
 
-    if (_GetZ(end) > _GetZ(start))
+    if (GetZ(end) > GetZ(start))
     {
       TRACER_LOG_DEBUG("Start " + str(start) + " is below end " + str(end) + ", flipping");
       std::swap(start, end);
@@ -97,8 +97,8 @@ namespace c8_tracer
   }
 
   inline std::vector<SignalPath> RayTracer2D::GetSignalPathsNGD(Point const &sourceXX,
-                                                               Point const &targetXX,
-                                                               EnvironmentBase const &env)
+                                                                Point const &targetXX,
+                                                                EnvironmentBase const &env)
   {
 
     std::vector<SignalPath> signalPaths;
@@ -110,12 +110,12 @@ namespace c8_tracer
 
     // don't want to start directly horizontal (will not propagate)
     // bump the start slightly upward
-    if (abs(_GetZ(start) - _GetZ(end)) < DCOS_TOL)
+    if (abs(GetZ(start) - GetZ(end)) < DCOS_TOL)
     {
       start = start + axis_ * DCOS_TOL;
     }
 
-    if (_GetZ(end) > _GetZ(start))
+    if (GetZ(end) > GetZ(start))
     {
       TRACER_LOG_DEBUG("End " + str(end) + " is above start " + str(start) + ", flipping");
       std::swap(start, end);
@@ -129,7 +129,7 @@ namespace c8_tracer
 
     TRACER_LOG_INFO("Finding first solution with seed " + str(seed1));
     bool const solution1Found =
-        FindEmitAndReceive(start, end, env, seed1, emit1, receive1);
+        FindEmitAndReceiveNGD(start, end, env, seed1, emit1, receive1);
     TRACER_LOG_INFO("Returned solution dir " + str(emit1));
 
     // If this one failed, the next one is not worth calculating (shadow zone)
@@ -142,7 +142,7 @@ namespace c8_tracer
     auto const path1 = GetSignalPath(start, emit1, end, env);
     signalPaths.push_back(flippedStartEnd ? FlipSignalPath(path1) : path1);
 
-    auto const parallelComp = emit1 * _GetZ(emit1);
+    auto const parallelComp = emit1 * GetZ(emit1);
     auto const perpDir = (emit1 - parallelComp).normalized();
 
     // in most cases, the other solution is close to the negative launch vector
@@ -154,25 +154,25 @@ namespace c8_tracer
     DirectionVector receive2 = seed2;
 
     TRACER_LOG_INFO("Finding second solution with seed " + str(seed2));
-    bool solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
+    bool solution2Found = FindEmitAndReceiveNGD(start, end, env, seed2, emit2, receive2);
     TRACER_LOG_INFO("Returned solution dir " + str(emit2));
 
     // if similar, probably found the same solution again
     // do a scan to check for other solution
-    if (abs(_GetZ(emit1) - _GetZ(emit2)) < 0.0001)
+    if (abs(GetZ(emit1) - GetZ(emit2)) < 0.0001)
     {
       TRACER_LOG_WARNING(
           "Solution 2 is similar to solution 1, performing search for another minimum");
       int const nTest = 5;
-      double const dcos = (1 - _GetZ(emit1)) / (nTest + 1);
+      double const dcos = (1 - GetZ(emit1)) / (nTest + 1);
       for (int itest = 1; itest <= nTest; itest++)
       {
         cosine += dcos;
         sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
         seed2 = axis_ * cosine + perpDir * sine;
-        solution2Found = FindEmitAndReceive(start, end, env, seed2, emit2, receive2);
+        solution2Found = FindEmitAndReceiveNGD(start, end, env, seed2, emit2, receive2);
 
-        if (abs(_GetZ(emit1) - _GetZ(emit2)) > 0.0001)
+        if (abs(GetZ(emit1) - GetZ(emit2)) > 0.0001)
         {
           break;
         }
@@ -203,12 +203,12 @@ namespace c8_tracer
 
     // don't want to start directly horizontal (will not propagate)
     // bump the start slightly upward
-    if (abs(_GetZ(start) - _GetZ(target)) < DCOS_TOL)
+    if (abs(GetZ(start) - GetZ(target)) < DCOS_TOL)
     {
       start = start + axis_ * DCOS_TOL;
     }
 
-    if (_GetZ(target) > _GetZ(start))
+    if (GetZ(target) > GetZ(start))
     {
       TRACER_LOG_DEBUG("Flipping start/end positions. original start " +
                        str(startInit) + ", original end " + str(targetInit));
@@ -327,7 +327,7 @@ namespace c8_tracer
                     " total rays");
     return std::make_tuple(std::vector<DirectionVector>{}, std::vector<DirectionVector>{});
   }
-  inline bool RayTracer2D::FindEmitAndReceive(
+  inline bool RayTracer2D::FindEmitAndReceiveNGD(
       Point const &sourceXX, Point const &targetXX, EnvironmentBase const &env,
       DirectionVector const &seed, DirectionVector &emit, DirectionVector &receive)
   {
@@ -345,7 +345,7 @@ namespace c8_tracer
     Point end = targetXX;
     bool flippedStartEnd = false;
 
-    if (_GetZ(end) > _GetZ(start))
+    if (GetZ(end) > GetZ(start))
     {
       TRACER_LOG_TRACE("Flipping start/end positions. original start " +
                        str(sourceXX) + ", original end " + str(targetXX));
@@ -361,7 +361,7 @@ namespace c8_tracer
     auto const phi =
         std::atan2(v1.y, v1.x);
 
-    if (_GetZ(seed) < -0.99)
+    if (GetZ(seed) < -0.99)
     {
       TRACER_LOG_TRACE("Direction close to vertical, setting dcos to " + str(dcos * 0.01));
       dcos *= 0.01;
@@ -396,16 +396,16 @@ namespace c8_tracer
     }
 
     // set launch vector #2 as a slight perturbation to calculate derivatie
-    auto cosine = _GetZ(v1) + dcos;
+    auto cosine = GetZ(v1) + dcos;
     if (cosine < -1)
     {
       dcos *= -1;
-      cosine = _GetZ(v1) + dcos;
+      cosine = GetZ(v1) + dcos;
     }
     else if (cosine > 1)
     {
       dcos *= -1;
-      cosine = _GetZ(v1) + dcos;
+      cosine = GetZ(v1) + dcos;
     }
 
     auto sine = std::sqrt(std::max(0.0, 1.0 - cosine * cosine));
@@ -491,14 +491,14 @@ namespace c8_tracer
       if (0.0 > dr1 && (dr1 > closeNegErr || 0.0 == closeNegErr))
       {
         closeNegErr = dr1;
-        closeNegCos = _GetZ(v1);
+        closeNegCos = GetZ(v1);
         TRACER_LOG_TRACE("Step " + str(istep) +
                          " --> Updating neg binary limit " + str(closeNegCos) + " " + str(closePosErr));
       }
       else if (0.0 < dr1 && (dr1 < closePosErr || 0.0 == closePosErr))
       {
         closePosErr = dr1;
-        closePosCos = _GetZ(v1);
+        closePosCos = GetZ(v1);
         TRACER_LOG_TRACE("Step " + str(istep) + " --> Updating pos binary limit " +
                          str(closeNegCos) + " " + str(closePosErr));
       }
@@ -510,7 +510,7 @@ namespace c8_tracer
       // If spanning the solution, linear interp using current solutions
       if (dr1 * dr2 < 0.0 * 0.0)
       {
-        cosine = (dr1 * _GetZ(v2) - dr2 * _GetZ(v1)) / (dr1 - dr2);
+        cosine = (dr1 * GetZ(v2) - dr2 * GetZ(v1)) / (dr1 - dr2);
         derivative *= 0.0; // don't update on next step
         dcos *= 0.1;
       }
@@ -523,7 +523,7 @@ namespace c8_tracer
         dcos *= 0.5;
         TRACER_LOG_TRACE(
             "Step " + str(istep) + " --> Taking binary step current cos: " +
-            str(_GetZ(v1)) + " next cos: " + str(cosine));
+            str(GetZ(v1)) + " next cos: " + str(cosine));
       }
       else
       {
@@ -777,7 +777,7 @@ namespace c8_tracer
     }
     else if (startDist == 0)
     {
-      if (_GetZ(startDir) < 0)
+      if (GetZ(startDir) < 0)
       {
         TRACER_LOG_TRACE("Starting shot exactly at target Z! " + str(start) + " = " + str(target) +
                          " and pointed downwards " + str(startDir) + " failing");
@@ -842,7 +842,7 @@ namespace c8_tracer
     }
     else if (distStart == 0)
     {
-      if (_GetZ(startDir) >= 0) // equal catches prop for uniform medium
+      if (GetZ(startDir) >= 0) // equal catches prop for uniform medium
       {
         useStart = start + axis_ * PLANE_CLOSE_TOL / 2.0;
         TRACER_LOG_TRACE("Adjusting start pos to: " + str(useStart));

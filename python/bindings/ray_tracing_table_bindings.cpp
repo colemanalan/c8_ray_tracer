@@ -65,7 +65,7 @@ void bind_interpolation_table_generator_2d(py::module_ &m)
      py::module_ tables = m.def_submodule("tables", "Tables to hold pre-calculated ray-tracing tables");
 
      py::class_<InterpolationTableGenerator2D>(tables, "InterpolationTableGenerator2D")
-         .def(py::init<RayTracerBase &, const EnvironmentBase &>(),
+         .def(py::init<RayTracer2D &, const EnvironmentBase &>(),
               py::arg("ray_tracer"), py::arg("environment"),
               py::keep_alive<1, 2>(), py::keep_alive<1, 3>()) // Ensure references stay alive
 

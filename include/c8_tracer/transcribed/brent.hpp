@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <functional>
 #include <stdexcept>
@@ -23,7 +25,7 @@ namespace c8_tracer
    *
    * @return the x-value corresponding to the root of `func`
    */
-  double BrentMethod(
+  inline double BrentMethod(
       std::function<LengthType(double)> func, double a, double b,
       LengthType faInit, LengthType fbInit, double tol = 1e-6,
       int max_iter = 100)
