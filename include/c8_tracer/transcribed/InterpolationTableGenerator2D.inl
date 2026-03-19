@@ -73,9 +73,10 @@ namespace c8_tracer
     double const totalCells = double(nRBins) * nZBins;
     uint progressSteps = 0;
 
+    auto const startZ = GetZ_(start);
     LOG_INFO("Generating table for antenna at " + std::to_string(antennaPos));
     LOG_INFO("--> min R: " + std::to_string(minR) + ", max R: " + std::to_string(maxR) + ", N: " + std::to_string(nRBins));
-    LOG_INFO("--> min Z: " + std::to_string(minZ) + ", max Z: " + std::to_string(maxZ) + ", N: " + std::to_string(nZBins));
+    LOG_INFO("--> min Z: " + std::to_string(minZ + startZ) + ", max Z: " + std::to_string(maxZ + startZ) + ", N: " + std::to_string(nZBins));
 
     // Try once to find unique solutions for each point
     bool atLeastOneFound = false;
