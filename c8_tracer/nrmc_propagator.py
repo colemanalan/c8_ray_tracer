@@ -121,7 +121,7 @@ class C8RayTracerIndividual(ray_tracing_base):
             xp = np.linspace(0.0, 1.0, len(self._paths[iS]))
             return np.transpose(
                 [
-                    np.interp(x, xp, self._paths[iS, :, 0]),
+                    np.interp(x, xp, self._paths[iS, :, 0]), # type: ignore
                     np.interp(x, xp, self._paths[iS, :, 1]),
                     np.interp(x, xp, self._paths[iS, :, 2]),
                 ]
